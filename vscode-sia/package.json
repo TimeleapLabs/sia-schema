@@ -1,0 +1,34 @@
+{
+  "name": "vscode-sia",
+  "displayName": "sia",
+  "description": "Sia is a superfast binary serialization format",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "sia",
+        "aliases": [
+          "Sia",
+          "sia"
+        ],
+        "extensions": [
+          ".sia"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "sia",
+        "scopeName": "source.sia",
+        "path": "./syntaxes/sia.tmLanguage.json"
+      }
+    ]
+  }
+}

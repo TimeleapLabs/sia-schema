@@ -1,4 +1,16 @@
 {
   "name": "sia-schema",
-  "packageManager": "yarn@4.4.1"
+  "packageManager": "yarn@4.5.2",
+  "dependencies": {
+    "chevrotain": "^11.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.3",
+    "typescript": "^5.7.2"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  }
 }

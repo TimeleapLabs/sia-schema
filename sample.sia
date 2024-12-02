@@ -1,0 +1,18 @@
+Person {
+  name    text
+  age?    int32(min = 0, max = 120)
+  email?  text(encoding = "ascii")
+  tags    text[]
+  address Address
+}
+
+Address {
+  street  text = "Default Street"
+  city    text
+  zip     int32
+}
+
+function add returns int64 {
+  lhs int32
+  rhs int32
+}
