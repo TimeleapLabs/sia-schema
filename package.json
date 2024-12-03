@@ -1,16 +1,28 @@
 {
   "name": "sia-schema",
+  "version": "1.0.0",
   "packageManager": "yarn@4.5.2",
   "dependencies": {
     "chevrotain": "^11.0.3"
   },
+  "bin": "dist/cli.js",
   "devDependencies": {
+    "@eslint/js": "^9.16.0",
     "@types/node": "^22.9.3",
-    "typescript": "^5.7.2"
+    "eslint": "^9.16.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "globals": "^15.13.0",
+    "prettier": "^3.4.1",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.17.0"
   },
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write .",
+    "ts-check": "tsc --noEmit"
   }
 }
