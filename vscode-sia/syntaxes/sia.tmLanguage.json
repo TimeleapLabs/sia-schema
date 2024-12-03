@@ -13,7 +13,7 @@
       "patterns": [
         {
           "name": "keyword.control.sia",
-          "match": "\\b(function|returns)\\b"
+          "match": "\\b(function|returns|schema)\\b"
         }
       ]
     },

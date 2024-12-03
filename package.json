@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "packageManager": "yarn@4.5.2",
   "dependencies": {
-    "chevrotain": "^11.0.3"
+    "chevrotain": "^11.0.3",
+    "commander": "^12.1.0"
   },
   "bin": "dist/cli.js",
   "devDependencies": {
