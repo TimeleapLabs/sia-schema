@@ -10,7 +10,7 @@ import { ILexingError, IRecognitionException } from "chevrotain";
 const program = new Command();
 
 program
-  .name("sia-schema")
+  .name("sia")
   .description("A schema compiler for the fastest serializing library.")
   .version("1.0.0");
 
