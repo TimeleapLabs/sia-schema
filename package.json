@@ -6,7 +6,9 @@
     "chevrotain": "^11.0.3",
     "commander": "^12.1.0"
   },
-  "bin": "dist/cli.js",
+  "bin": {
+    "sia": "dist/cli.js"
+  },
   "devDependencies": {
     "@eslint/js": "^9.16.0",
     "@types/node": "^22.9.3",

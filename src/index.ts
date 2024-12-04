@@ -16,8 +16,6 @@ export const compile = (src: string) => {
     throw SiaSchemaParserInstance.errors[0];
   }
 
-  // return cst;
-
   const SiaSchemaVisitorInstance = new SiaSchemaVisitor(src);
   const result = SiaSchemaVisitorInstance.visit(cst);
 
