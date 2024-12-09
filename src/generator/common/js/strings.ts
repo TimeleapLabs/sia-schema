@@ -39,8 +39,13 @@ export const createCustomSerializerFunctionCallString = (
   return `serialize${serializer}(${siaInstance}, ${fieldName});\n`;
 };
 
-export const createNamedObjectString = (name: string, body: string) => {
-  return `const ${name} = {\n${body}\n};\n`;
+export const createNamedObjectString = (
+  name: string,
+  body: string,
+  type?: string,
+) => {
+  const typeString = type ? `: ${type}` : "";
+  return `const ${name}${typeString} = {\n${body}\n};\n`;
 };
 
 export const createSiaInstanceString = (schemaName: string) => {
