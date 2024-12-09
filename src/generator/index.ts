@@ -1,6 +1,6 @@
-import { SchemaDefinition } from "../../visitor.js";
-import { generateJs, isJsProject } from "../javascript.js";
-import { Extension } from "./types.js";
+import { SchemaDefinition } from "../visitor.js";
+import { Extension } from "./common/types.js";
+import { generateJs, isJsProject } from "./javascript.js";
 
 export const getExtension = (extension?: string) => {
   if (extension && !Object.values(Extension).includes(extension as Extension)) {

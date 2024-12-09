@@ -2,7 +2,6 @@ import { existsSync } from "fs";
 import path from "path";
 import * as prettier from "prettier";
 import { SchemaDefinition } from "../visitor.js";
-import { createLineBreakString } from "./common/index.js";
 import {
   generateAttribute,
   getRequiredSerializers,
@@ -24,6 +23,7 @@ import {
   createSiaResultString,
 } from "./common/js/strings.js";
 import { Generator, SiaType } from "./common/types.js";
+import { createLineBreakString } from "./index.js";
 
 export const isJsProject = () => {
   return existsSync(path.join(process.cwd(), "package.json"));
