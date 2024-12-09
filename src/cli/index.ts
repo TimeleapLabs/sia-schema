@@ -3,11 +3,9 @@
 import { ILexingError, IRecognitionException } from "chevrotain";
 import { Command } from "commander";
 import { readFileSync, writeFileSync } from "fs";
-import { formatGoFile } from "./generator/common/go/index.js";
-import { Extension } from "./generator/common/types.js";
-import { generateSia, getExtension } from "./generator/index.js";
-import { compile } from "./index.js";
-import { logError } from "./utils/log.js";
+import { compile } from "../index.js";
+import { logError } from "../utils/log.js";
+import { generateSia, getExtension } from "./common/index.js";
 
 const program = new Command();
 
@@ -50,11 +48,6 @@ program
       const newFileName = file.replace(".sia", `.${extension}`);
       const generatedSia = await generateSia(sir, extension);
       writeFileSync(newFileName, generatedSia);
-
-      if (extension === Extension.GO) {
-        formatGoFile(newFileName);
-      }
-
       console.info(`Sia file written to ${newFileName}`);
     } catch (error) {
       logError(src, file, error as ILexingError | IRecognitionException);
