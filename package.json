@@ -7,7 +7,7 @@
     "commander": "^12.1.0"
   },
   "bin": {
-    "sia": "dist/cli.js"
+    "sia": "dist/cli/index.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.16.0",
@@ -16,14 +16,15 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "globals": "^15.13.0",
-    "prettier": "^3.4.1",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.17.0"
   },
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "tsx src/cli/index.ts",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write .",
     "ts-check": "tsc --noEmit"
