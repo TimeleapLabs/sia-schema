@@ -1,4 +1,4 @@
-import { IRecognitionException, ILexingError } from "chevrotain";
+import { ILexingError, IRecognitionException } from "chevrotain";
 
 const getLines = (src: string, line: number) =>
   src
@@ -18,11 +18,11 @@ export const logLexerError = (
   error: ILexingError,
 ) => {
   const code = addCaret(src, error.line as number, error.column as number);
-  console.log(
+  console.warn(
     `Lexing error in ${filename} at line ${error.line}:${error.column}\n`,
   );
-  console.log(`${code}\n`);
-  console.log(error.message);
+  console.warn(`${code}\n`);
+  console.warn(error.message);
 };
 
 export const logParserError = (
@@ -35,11 +35,11 @@ export const logParserError = (
     error.token.startLine as number,
     error.token.endColumn as number,
   );
-  console.log(
+  console.warn(
     `Parsing error in ${filename} at line ${error.token.startLine}:${error.token.startColumn}\n`,
   );
-  console.log(`${code}\n`);
-  console.log(error.message);
+  console.warn(`${code}\n`);
+  console.warn(error.message);
 };
 
 export const logError = (

@@ -20,6 +20,8 @@ interface FieldDefinition {
   optional?: boolean;
   isArray?: boolean;
   defaultValue?: string | number | boolean;
+  min?: number;
+  max?: number;
   [key: string]: unknown;
 }
 

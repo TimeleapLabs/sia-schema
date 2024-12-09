@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
+import { ILexingError, IRecognitionException } from "chevrotain";
 import { Command } from "commander";
 import { readFileSync, writeFileSync } from "fs";
+import { generateSia, getExtension } from "./generator/index.js";
 import { compile } from "./index.js";
 import { logError } from "./utils/log.js";
-
-import { ILexingError, IRecognitionException } from "chevrotain";
 
 const program = new Command();
 
@@ -18,30 +18,37 @@ program
   .command("compile")
   .description("Compile a .sia file")
   .argument("<file>", "file to compile")
-  .option("-s, --string", "display the result as a string")
-  .option("-o, --output <file>", "output the result to a file")
+  .option("-s, --generate-sir", "generate the sir file")
+  .option("-e, --extension <extension>", "extension of the output file")
   .action(async (file, options) => {
+    const extension = getExtension(options.extension);
+
+    if (!extension) {
+      console.error("Invalid extension");
+      process.exitCode = 1;
+      return;
+    }
+
     const src = readFileSync(file, "utf-8");
     try {
-      const result = compile(src);
+      const sir = compile(src);
 
-      if (options.string) {
-        try {
-          return console.log(JSON.stringify(result, null, 2));
-        } catch (error) {
-          console.error(error);
-          process.exitCode = 1;
-          return;
-        }
+      if (options.generateSir) {
+        const outputFile = file.replace(".sia", ".json");
+        writeFileSync(outputFile, JSON.stringify(sir, null, 2));
+        console.info(`Sir file written to ${outputFile}`);
       }
 
-      if (options.output) {
-        writeFileSync(options.output, JSON.stringify(result, null, 2));
-        console.log(`Output written to ${options.output}`);
-        return;
+      if (options.extension) {
+        console.info(`Generating ${extension} file`);
+      } else {
+        console.info(`Detected extension: ${extension}`);
       }
 
-      return console.dir(result, { depth: null });
+      const newFileName = file.replace(".sia", `.${extension}`);
+      const generatedSia = await generateSia(sir, extension);
+      writeFileSync(newFileName, generatedSia);
+      console.info(`Sia file written to ${newFileName}`);
     } catch (error) {
       logError(src, file, error as ILexingError | IRecognitionException);
       process.exitCode = 1;

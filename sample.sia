@@ -1,18 +1,50 @@
 schema Person {
-  name    text
-  age?    int32(min = 0, max = 120)
-  email?  text(encoding = "ascii")
-  tags    text[]
+  name    string8
+  age?    string(min = 0, max = 120)
+  ageNumber? int32
+  email?  string8(encoding = "ascii")
+  ageArray? int8[]
+  ageArray2? int16[]
+  ageArray3? int32[]
+  ageArray4? int64[]
+  footSizeArray? uint8[]
+  footSizeArray2? uint16[]
+  footSizeArray3? uint32[]
+  footSizeArray4? uint64[]
+  tags8   string8[]
+  tags16  string16[]
+  tags32  string32[]
+  tags64  string64[]
+  tagsByteArray8 byte8[]
+  tagsByteArray16 byte16[]
+  tagsByteArray32 byte32[]
+  tagsByteArray64 byte64[]
+  tagsBool bool[]
+  tagsBigInt bigint[]
+  tagsArray8 array8[]
+  tagsArray16 array16[]
+  tagsArray32 array32[]
+  tagsArray64 array64[]
   address Address
+  isAdmin bool
+  billingInfo? BillingInfo
 }
 
 schema Address {
-  street  text = "Default Street"
-  city    text
-  zip     int32
+  street  string8 = "Default Street"
+  city    string8
+  zip     string(min = 5, max = 5)
+  country Country
 }
 
-function add returns int64 {
-  lhs int32
-  rhs int32
+schema Country {
+  name string8
+  code string(min = 2, max = 2)
+  codeArray string8[]
+  flag string8
+}
+
+schema BillingInfo {
+  cardNumber string8
+  expiryDate string8
 }
