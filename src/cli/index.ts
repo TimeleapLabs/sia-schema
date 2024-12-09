@@ -3,9 +3,9 @@
 import { ILexingError, IRecognitionException } from "chevrotain";
 import { Command } from "commander";
 import { readFileSync, writeFileSync } from "fs";
-import { generateSia, getExtension } from "./generator/index.js";
-import { compile } from "./index.js";
-import { logError } from "./utils/log.js";
+import { compile } from "../index.js";
+import { logError } from "../utils/log.js";
+import { generateSia, getExtension } from "./common/index.js";
 
 const program = new Command();
 
