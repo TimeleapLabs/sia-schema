@@ -2,28 +2,21 @@ import { SchemaDefinition } from "../visitor.js";
 import {
   generateAttribute,
   getRequiredSerializers,
-  getStringTypeFromLength,
-  isAnyString,
-  isByteArray,
 } from "./common/js/index.js";
-import {
-  siaTypeArraySizeFunctionMap,
-  siaTypeFunctionMap,
-  siaTypeSerializerArrayItemMap,
-} from "./common/js/maps.js";
 import {
   createCustomSerializerFunctionCallString,
   createCustomSerializerFunctionDeclarationString,
-  createIfConditionString,
   createNamedObjectString,
-  createSiaAddTypeFunctionCallString,
   createSiaImportString,
   createSiaInstanceString,
   createSiaResultString,
 } from "./common/js/strings.js";
-import { generateInterfaceField } from "./common/ts/index.js";
+import {
+  generateInterfaceFields,
+  generateSchemaFunctionBody,
+} from "./common/ts/index.js";
 import { generateInterfaceString } from "./common/ts/strings.js";
-import { Generator, SiaType } from "./common/types.js";
+import { Generator } from "./common/types.js";
 import { createLineBreakString } from "./index.js";
 
 export class GenericJsTsGenerator implements Generator {
@@ -43,7 +36,7 @@ export class GenericJsTsGenerator implements Generator {
   types(): string {
     return this.sir
       .map((schema) => {
-        const fields = schema.fields.map(generateInterfaceField);
+        const fields = generateInterfaceFields(schema.fields);
         return generateInterfaceString(schema.name, fields.join("\n"));
       })
       .join(createLineBreakString(2));
@@ -86,62 +79,7 @@ export class GenericJsTsGenerator implements Generator {
   }
 
   private generateSchemaFunction(schema: SchemaDefinition): string {
-    let fnBody = "";
-
-    schema.fields.forEach((field) => {
-      let fieldType = field.type as SiaType;
-      const fieldName = `obj.${field.name}`;
-
-      if (fieldType === SiaType.String) {
-        fieldType = getStringTypeFromLength(field.max);
-      }
-
-      if (field.isArray) {
-        if (isByteArray(fieldType)) {
-          fnBody += createSiaAddTypeFunctionCallString(
-            siaTypeFunctionMap[fieldType],
-            fieldName,
-          );
-        } else {
-          const serializer =
-            siaTypeSerializerArrayItemMap[
-              fieldType as keyof typeof siaTypeSerializerArrayItemMap
-            ];
-          fnBody += createSiaAddTypeFunctionCallString(
-            field.arraySize
-              ? siaTypeArraySizeFunctionMap[field.arraySize]
-              : "addArray8",
-            fieldName,
-            serializer,
-          );
-        }
-      } else if (isAnyString(fieldType) && field.encoding === "ascii") {
-        fnBody += createSiaAddTypeFunctionCallString("addAscii", fieldName);
-      } else if (!Object.values(SiaType).includes(fieldType)) {
-        if (field.optional) {
-          fnBody += createIfConditionString(
-            fieldName,
-            createCustomSerializerFunctionCallString(
-              field.type,
-              "sia",
-              fieldName,
-            ),
-          );
-        } else {
-          fnBody += createCustomSerializerFunctionCallString(
-            field.type,
-            "sia",
-            fieldName,
-          );
-        }
-      } else {
-        const fn = siaTypeFunctionMap[fieldType];
-        if (fn) {
-          fnBody += createSiaAddTypeFunctionCallString(fn, fieldName);
-        }
-      }
-    });
-
+    const fnBody = generateSchemaFunctionBody(schema.fields);
     const fnName = `serialize${schema.name}`;
     const signature = this.typed ? `sia: Sia, obj: ${schema.name}` : `sia, obj`;
     return createCustomSerializerFunctionDeclarationString(

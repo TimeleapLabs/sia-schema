@@ -1,12 +1,17 @@
 import { FieldDefinition } from "../../../visitor.js";
+import { getStringTypeFromLength, isAnyString, isByteArray } from "../index.js";
+import {
+  siaTypeArraySizeFunctionMap,
+  siaTypeFunctionMap,
+  siaTypeSerializerArrayItemMap,
+} from "../js/maps.js";
+import {
+  createCustomSerializerFunctionCallString,
+  createIfConditionString,
+  createSiaAddTypeFunctionCallString,
+} from "../js/strings.js";
 import { SiaType } from "../types.js";
 import { generateInterfaceFieldString } from "./strings.js";
-
-export const generateInterfaceFields = (fields: FieldDefinition[]) => {
-  return fields.map((field) => {
-    return generateInterfaceFieldString(field.name, field.type, field.optional);
-  });
-};
 
 const makeArrayType = (type: string) => {
   return `Array<${type}>`;
@@ -40,4 +45,80 @@ const getTypeScriptType = (fieldType: string, isArray: boolean): string => {
 export const generateInterfaceField = (field: FieldDefinition) => {
   const type = getTypeScriptType(field.type, Boolean(field.isArray));
   return generateInterfaceFieldString(field.name, type, field.optional);
+};
+
+export const generateInterfaceFields = (fields: FieldDefinition[]) => {
+  return fields.map((field) => {
+    return generateInterfaceField(field);
+  });
+};
+
+export const generateArraySerializer = (
+  fieldType: SiaType,
+  fieldName: string,
+  arraySize?: number,
+) => {
+  if (isByteArray(fieldType)) {
+    return createSiaAddTypeFunctionCallString(
+      siaTypeFunctionMap[fieldType],
+      fieldName,
+    );
+  } else {
+    const serializer =
+      siaTypeSerializerArrayItemMap[
+        fieldType as keyof typeof siaTypeSerializerArrayItemMap
+      ];
+    return createSiaAddTypeFunctionCallString(
+      arraySize
+        ? siaTypeArraySizeFunctionMap[arraySize]
+        : siaTypeArraySizeFunctionMap[8],
+      fieldName,
+      serializer,
+    );
+  }
+};
+
+export const generateCustomSerializer = (
+  fieldName: string,
+  fieldType: SiaType,
+  optional: boolean | undefined,
+) => {
+  const serializer = createCustomSerializerFunctionCallString(
+    fieldType,
+    "sia",
+    fieldName,
+  );
+  if (optional) {
+    return createIfConditionString(fieldName, serializer);
+  } else {
+    return serializer;
+  }
+};
+
+export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
+  let fnBody = "";
+
+  fields.forEach((field) => {
+    let fieldType = field.type as SiaType;
+    const fieldName = `obj.${field.name}`;
+
+    if (fieldType === SiaType.String) {
+      fieldType = getStringTypeFromLength(field.max);
+    }
+
+    if (field.isArray) {
+      fnBody += generateArraySerializer(fieldType, fieldName, field.arraySize);
+    } else if (isAnyString(fieldType) && field.encoding === "ascii") {
+      fnBody += createSiaAddTypeFunctionCallString("addAscii", fieldName);
+    } else if (!Object.values(SiaType).includes(fieldType)) {
+      fnBody += generateCustomSerializer(fieldName, fieldType, field.optional);
+    } else {
+      const fn = siaTypeFunctionMap[fieldType];
+      if (fn) {
+        fnBody += createSiaAddTypeFunctionCallString(fn, fieldName);
+      }
+    }
+  });
+
+  return fnBody;
 };
