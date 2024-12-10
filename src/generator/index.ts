@@ -1,5 +1,6 @@
 import { SchemaDefinition } from "../visitor.js";
 import { Extension } from "./common/types.js";
+import { generateGo, isGoProject } from "./go.js";
 import { generateJs, isJsProject } from "./javascript.js";
 import { generateTs, isTsProject } from "./typescript.js";
 
@@ -14,6 +15,8 @@ export const getExtension = (extension?: string) => {
       return Extension.TS;
     } else if (isJsProject()) {
       return Extension.JS;
+    } else if (isGoProject()) {
+      return Extension.GO;
     }
   }
 
@@ -36,6 +39,9 @@ export const generateSia = (sir: SchemaDefinition[], extension: Extension) => {
       break;
     case Extension.TS:
       processor = generateTs;
+      break;
+    case Extension.GO:
+      processor = generateGo;
       break;
   }
 
