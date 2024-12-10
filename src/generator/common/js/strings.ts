@@ -1,3 +1,5 @@
+import { SiaType } from "../types.js";
+
 export const createAttributeString = (name: string, value: string) => {
   return `${name}: ${value},`;
 };
@@ -54,4 +56,19 @@ export const createSiaInstanceString = (schemaName: string) => {
 
 export const createSiaResultString = (instanceName: string) => {
   return `const result = ${instanceName}.content;`;
+};
+
+export const createByteArrayString = (type: SiaType) => {
+  const jsType = "new Uint8Array()";
+
+  switch (type) {
+    case SiaType.ByteArray16:
+      return "new Uint16Array()";
+    case SiaType.ByteArray32:
+      return "new Uint32Array()";
+    case SiaType.ByteArray64:
+      return "new BigUint64Array()";
+    default:
+      return jsType;
+  }
 };

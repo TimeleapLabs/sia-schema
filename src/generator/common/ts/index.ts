@@ -8,23 +8,36 @@ export const generateInterfaceFields = (fields: FieldDefinition[]) => {
   });
 };
 
-const getTypeScriptType = (fieldType: string): string => {
+const makeArrayType = (type: string) => {
+  return `Array<${type}>`;
+};
+
+const getTypeScriptType = (fieldType: string, isArray: boolean): string => {
   if (fieldType.startsWith("int") || fieldType.startsWith("uint")) {
-    return "number";
+    return isArray ? makeArrayType("number") : "number";
   }
   if (fieldType === "bool") {
-    return "boolean";
+    return isArray ? makeArrayType("boolean") : "boolean";
+  }
+  if (fieldType.startsWith("byte")) {
+    switch (fieldType) {
+      case "byte16":
+        return "Buffer | Uint16Array";
+      case "byte32":
+        return "Buffer | Uint32Array";
+      case "byte64":
+        return "Buffer | BigUint64Array";
+      default:
+        return "Buffer | Uint8Array";
+    }
   }
   if (Object.values(SiaType).includes(fieldType as SiaType)) {
-    return "string";
+    return isArray ? makeArrayType("string") : "string";
   }
   return fieldType; // For custom types (schema references)
 };
 
 export const generateInterfaceField = (field: FieldDefinition) => {
-  let type = getTypeScriptType(field.type);
-  if (field.isArray) {
-    type = `Array<${type}>`;
-  }
+  const type = getTypeScriptType(field.type, Boolean(field.isArray));
   return generateInterfaceFieldString(field.name, type, field.optional);
 };
