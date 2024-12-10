@@ -25,6 +25,7 @@ export enum SiaType {
 export enum Extension {
   JS = "js",
   TS = "ts",
+  GO = "go",
 }
 
 export interface Generator {
