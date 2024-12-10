@@ -83,8 +83,9 @@ class ECSNParser extends CstParser {
 
   // Rule for a field
   public array = this.RULE("array", () => {
-    this.CONSUME(LSquare); // Field name
-    this.CONSUME(RSquare); // Field name
+    this.CONSUME(LSquare);
+    this.OPTION(() => this.CONSUME(NumberLiteral)); // Array size
+    this.CONSUME(RSquare);
   });
 
   // Rule for default values

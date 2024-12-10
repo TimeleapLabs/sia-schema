@@ -6,6 +6,7 @@ import {
   isAnyString,
 } from "./common/js/index.js";
 import {
+  siaTypeArraySizeFunctionMap,
   siaTypeFunctionMap,
   siaTypeSerializerArrayItemMap,
 } from "./common/js/maps.js";
@@ -100,7 +101,9 @@ export class GenericJsTsGenerator implements Generator {
             fieldType as keyof typeof siaTypeSerializerArrayItemMap
           ];
         fnBody += createSiaAddTypeFunctionCallString(
-          siaTypeFunctionMap[SiaType.Array8],
+          field.arraySize
+            ? siaTypeArraySizeFunctionMap[field.arraySize]
+            : "addArray8",
           fieldName,
           serializer,
         );
