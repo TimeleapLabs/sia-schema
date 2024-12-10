@@ -72,6 +72,7 @@ export interface ArrayCstNode extends CstNode {
 
 export type ArrayCstChildren = {
   LSquare: IToken[];
+  NumberLiteral?: IToken[];
   RSquare: IToken[];
 };
 
