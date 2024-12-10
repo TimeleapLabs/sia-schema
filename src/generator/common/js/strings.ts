@@ -1,3 +1,5 @@
+import { SiaType } from "../types.js";
+
 export const createAttributeString = (name: string, value: string) => {
   return `${name}: ${value},`;
 };
@@ -39,8 +41,13 @@ export const createCustomSerializerFunctionCallString = (
   return `serialize${serializer}(${siaInstance}, ${fieldName});\n`;
 };
 
-export const createNamedObjectString = (name: string, body: string) => {
-  return `const ${name} = {\n${body}\n};\n`;
+export const createNamedObjectString = (
+  name: string,
+  body: string,
+  type?: string,
+) => {
+  const typeString = type ? `: ${type}` : "";
+  return `const ${name}${typeString} = {\n${body}\n};\n`;
 };
 
 export const createSiaInstanceString = (schemaName: string) => {
@@ -49,4 +56,19 @@ export const createSiaInstanceString = (schemaName: string) => {
 
 export const createSiaResultString = (instanceName: string) => {
   return `const result = ${instanceName}.content;`;
+};
+
+export const createByteArrayString = (type: SiaType) => {
+  const jsType = "new Uint8Array()";
+
+  switch (type) {
+    case SiaType.ByteArray16:
+      return "new Uint16Array()";
+    case SiaType.ByteArray32:
+      return "new Uint32Array()";
+    case SiaType.ByteArray64:
+      return "new BigUint64Array()";
+    default:
+      return jsType;
+  }
 };

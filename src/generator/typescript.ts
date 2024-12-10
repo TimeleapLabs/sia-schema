@@ -4,13 +4,13 @@ import * as prettier from "prettier";
 import { SchemaDefinition } from "../visitor.js";
 import { GenericJsTsGenerator } from "./generic-js-ts.js";
 
-export const isJsProject = () => {
+export const isTsProject = () => {
   return existsSync(path.join(process.cwd(), "package.json"));
 };
 
-export class JavaScriptGenerator extends GenericJsTsGenerator {
+export class TypeScriptGenerator extends GenericJsTsGenerator {
   constructor(schemas: SchemaDefinition[]) {
-    super(schemas, false);
+    super(schemas, true);
   }
 
   imports(): string {
@@ -18,7 +18,7 @@ export class JavaScriptGenerator extends GenericJsTsGenerator {
   }
 
   types(): string {
-    return "";
+    return super.types();
   }
 
   sampleObject(): string {
@@ -28,9 +28,13 @@ export class JavaScriptGenerator extends GenericJsTsGenerator {
   siaInstance(): string {
     return super.siaInstance();
   }
+
+  toString(): string {
+    return super.toString();
+  }
 }
 
-export const generateJs = async (schemas: SchemaDefinition[]) => {
-  const generator = new JavaScriptGenerator(schemas);
-  return prettier.format(generator.toString(), { parser: "babel" });
+export const generateTs = async (schemas: SchemaDefinition[]) => {
+  const generator = new TypeScriptGenerator(schemas);
+  return prettier.format(generator.toString(), { parser: "typescript" });
 };

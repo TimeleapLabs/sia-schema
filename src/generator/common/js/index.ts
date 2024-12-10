@@ -1,29 +1,18 @@
 import { FieldDefinition, SchemaDefinition } from "../../../visitor.js";
+import { isByteArray } from "../index.js";
 import { SiaType } from "../types.js";
 import { siaTypeSerializerArrayItemMap } from "./maps.js";
-import { createAttributeString } from "./strings.js";
-
-export const isAnyString = (type: SiaType) => {
-  return [
-    SiaType.String8,
-    SiaType.String16,
-    SiaType.String32,
-    SiaType.String64,
-  ].includes(type);
-};
-
-export const getStringTypeFromLength = (max: number = 255) => {
-  if (max <= 255) return SiaType.String8;
-  if (max <= 65535) return SiaType.String16;
-  if (max <= 4294967295) return SiaType.String32;
-  return SiaType.String64;
-};
+import { createAttributeString, createByteArrayString } from "./strings.js";
 
 export const getRequiredSerializers = (schemas: SchemaDefinition[]) => {
   return Array.from(
     new Set(
       schemas
-        .map((schema) => schema.fields.filter((field) => field.isArray))
+        .map((schema) =>
+          schema.fields.filter(
+            (field) => field.isArray && !isByteArray(field.type as SiaType),
+          ),
+        )
         .flat()
         .filter(Boolean)
         .map(
@@ -58,7 +47,12 @@ export const generateAttribute = (
   field: FieldDefinition,
   schemas: SchemaDefinition[],
 ): string => {
-  if (field.isArray) {
+  if (field.isArray && isByteArray(field.type as SiaType)) {
+    return createAttributeString(
+      field.name,
+      createByteArrayString(field.type as SiaType),
+    );
+  } else if (field.isArray) {
     return createAttributeString(field.name, "[]");
   }
 

@@ -20,10 +20,6 @@ export const siaTypeFunctionMap: Record<SiaType, string> = {
   [SiaType.ByteArray64]: "addByteArray64",
   [SiaType.Bool]: "addBool",
   [SiaType.BigInt]: "addBigInt",
-  [SiaType.Array8]: "addArray8",
-  [SiaType.Array16]: "addArray16",
-  [SiaType.Array32]: "addArray32",
-  [SiaType.Array64]: "addArray64",
 };
 
 export const siaTypeSerializerArrayItemMap: Record<SiaType, string> = {
@@ -46,8 +42,11 @@ export const siaTypeSerializerArrayItemMap: Record<SiaType, string> = {
   [SiaType.ByteArray64]: "serializeByteArray64ArrayItem",
   [SiaType.Bool]: "serializeBoolArrayItem",
   [SiaType.BigInt]: "serializeBigIntArrayItem",
-  [SiaType.Array8]: "serializeArray8ArrayItem",
-  [SiaType.Array16]: "serializeArray16ArrayItem",
-  [SiaType.Array32]: "serializeArray32ArrayItem",
-  [SiaType.Array64]: "serializeArray64ArrayItem",
+};
+
+export const siaTypeArraySizeFunctionMap: Record<number, string> = {
+  [8]: "addArray8",
+  [16]: "addArray16",
+  [32]: "addArray32",
+  [64]: "addArray64",
 };
