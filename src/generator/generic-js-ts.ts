@@ -4,6 +4,7 @@ import {
   getRequiredSerializers,
   getStringTypeFromLength,
   isAnyString,
+  isByteArray,
 } from "./common/js/index.js";
 import {
   siaTypeArraySizeFunctionMap,
@@ -96,17 +97,24 @@ export class GenericJsTsGenerator implements Generator {
       }
 
       if (field.isArray) {
-        const serializer =
-          siaTypeSerializerArrayItemMap[
-            fieldType as keyof typeof siaTypeSerializerArrayItemMap
-          ];
-        fnBody += createSiaAddTypeFunctionCallString(
-          field.arraySize
-            ? siaTypeArraySizeFunctionMap[field.arraySize]
-            : "addArray8",
-          fieldName,
-          serializer,
-        );
+        if (isByteArray(fieldType)) {
+          fnBody += createSiaAddTypeFunctionCallString(
+            siaTypeFunctionMap[fieldType],
+            fieldName,
+          );
+        } else {
+          const serializer =
+            siaTypeSerializerArrayItemMap[
+              fieldType as keyof typeof siaTypeSerializerArrayItemMap
+            ];
+          fnBody += createSiaAddTypeFunctionCallString(
+            field.arraySize
+              ? siaTypeArraySizeFunctionMap[field.arraySize]
+              : "addArray8",
+            fieldName,
+            serializer,
+          );
+        }
       } else if (isAnyString(fieldType) && field.encoding === "ascii") {
         fnBody += createSiaAddTypeFunctionCallString("addAscii", fieldName);
       } else if (!Object.values(SiaType).includes(fieldType)) {
