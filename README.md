@@ -51,7 +51,6 @@ This will generate the exact same code as above.
 
 ## Work in progress
 
-- [ ] Generate JavaScript code from the intermediate representation
-- [ ] Generate TypeScript code from the intermediate representation
 - [ ] Generate Python code from the intermediate representation
+- [ ] Generate Go code from the intermediate representation
 - [ ] Add support for functions
