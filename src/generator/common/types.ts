@@ -26,6 +26,7 @@ export enum Extension {
   JS = "js",
   TS = "ts",
   GO = "go",
+  PY = "py",
 }
 
 export interface Generator {

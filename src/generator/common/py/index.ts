@@ -9,85 +9,62 @@ import {
   siaTypeSerializerArrayItemMap,
 } from "./maps.js";
 import {
-  capitalizeFirstLetter,
   createAttributeString,
   createCustomSerializerFunctionCallString,
   createIfConditionString,
   createSiaAddTypeFunctionCallString,
-  generateTypeFieldString,
 } from "./strings.js";
 
 const execAsync = promisify(exec);
 
-const isGoInstalled = async (): Promise<boolean> => {
+const isPythonInstalled = async (): Promise<boolean> => {
   try {
-    await execAsync("go version");
+    await execAsync("python --version");
+    await execAsync("autopep8 --version");
     return true;
   } catch {
     return false;
   }
 };
 
-export const formatGoFile = async (filePath: string) => {
-  if (await isGoInstalled()) {
-    await execAsync(`go fmt ${filePath}`);
-    console.info("Go file formatted");
+export const formatPythonFile = async (filePath: string) => {
+  if (await isPythonInstalled()) {
+    await execAsync(`autopep8 --in-place --aggressive ${filePath}`);
+    console.info("Python file formatted");
   } else {
-    console.warn("Go is not installed. Skipping formatting...");
+    console.warn("Python is not installed. Skipping formatting...");
   }
 };
 
-const makeArrayType = (type: string) => {
-  return `[]${type}`;
-};
-
-export const hasBigInt = (schemas: SchemaDefinition[]): boolean => {
-  return schemas.some((schema) =>
-    schema.fields.some((field) => field.type.startsWith("bigint")),
+export const getRequiredSerializers = (schemas: SchemaDefinition[]) => {
+  return Array.from(
+    new Set(
+      schemas
+        .map((schema) =>
+          schema.fields.filter(
+            (field) => field.isArray && !isByteArray(field.type as SiaType),
+          ),
+        )
+        .flat()
+        .filter(Boolean)
+        .map(
+          (field) =>
+            siaTypeSerializerArrayItemMap[
+              field.type as keyof typeof siaTypeSerializerArrayItemMap
+            ],
+        ),
+    ),
   );
-};
-
-const getGoType = (fieldType: string, isArray: boolean): string => {
-  if (isAnyString(fieldType as SiaType)) {
-    return isArray ? makeArrayType("string") : "string";
-  }
-  if (fieldType.startsWith("byte")) {
-    return isArray ? makeArrayType("byte") : "Buffer";
-  }
-  if (fieldType.startsWith("bigint")) {
-    return isArray ? makeArrayType("big.Int") : "big.Int";
-  }
-  return isArray ? makeArrayType(fieldType) : fieldType;
-};
-
-export const generateInterfaceField = (field: FieldDefinition) => {
-  const type = getGoType(field.type, Boolean(field.isArray));
-  return generateTypeFieldString(field.name, type, field.optional);
-};
-
-export const generateTypeFields = (fields: FieldDefinition[]) => {
-  return fields.map((field) => {
-    return generateInterfaceField(field);
-  });
 };
 
 export const getDefaultValueForType = (
   field: SchemaDefinition["fields"][0],
 ): string => {
-  if (field.optional) {
-    return "nil";
-  }
   if (field.isArray) {
-    if (isAnyString(field.type as SiaType)) {
-      return `make([]string, 0)`;
-    }
     if (isByteArray(field.type as SiaType)) {
-      return `make([]byte, 0)`;
+      return "bytearray([])";
     }
-    if (field.type.startsWith("bigint")) {
-      return `make([]big.Int, 0)`;
-    }
-    return `make([]${field.type}, 0)`;
+    return "[]";
   }
   if (field.defaultValue) {
     return `"${field.defaultValue}"`;
@@ -96,7 +73,7 @@ export const getDefaultValueForType = (
     return "0";
   }
   if (field.type === "bool") {
-    return "false";
+    return "False";
   }
   return '""';
 };
@@ -125,21 +102,20 @@ export const generateNestedObjectAttribute = (
     .map((nestedField) => generateAttribute(nestedField, schemas))
     .join("\n");
 
-  return createAttributeString(
-    field.type,
-    `${field.optional ? "&" : ""}${field.type}{\n${nestedFields}\n}`,
-  );
+  return createAttributeString(field.name, `{\n${nestedFields}\n}`);
 };
 
 export const generateArraySerializer = (
   fieldType: SiaType,
   fieldName: string,
+  optional: boolean,
   arraySize?: number,
 ) => {
   if (isByteArray(fieldType)) {
     return createSiaAddTypeFunctionCallString(
       siaTypeFunctionMap[fieldType],
       fieldName,
+      optional,
     );
   } else {
     const serializer =
@@ -151,6 +127,7 @@ export const generateArraySerializer = (
         ? siaTypeArraySizeFunctionMap[arraySize]
         : siaTypeArraySizeFunctionMap[8],
       fieldName,
+      optional,
       serializer,
     );
   }
@@ -161,7 +138,7 @@ export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
 
   fields.forEach((field) => {
     let fieldType = field.type as SiaType;
-    const fieldName = `obj.${capitalizeFirstLetter(field.name)}`;
+    const fieldName = `obj["${field.name}"]`;
 
     if (fieldType === SiaType.String) {
       fieldType = getStringTypeFromLength(field.max);
@@ -172,32 +149,36 @@ export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
     if (field.isArray) {
       serializer = generateArraySerializer(
         fieldType,
-        `${field.optional ? "*" : ""}${fieldName}`,
+        fieldName,
+        Boolean(field.optional),
         field.arraySize,
       );
     } else if (isAnyString(fieldType) && field.encoding === "ascii") {
       serializer = createSiaAddTypeFunctionCallString(
-        "AddAscii",
-        `${field.optional ? "*" : ""}${fieldName}`,
+        "add_ascii",
+        fieldName,
+        field.optional,
       );
     } else if (!Object.values(SiaType).includes(fieldType)) {
       serializer = createCustomSerializerFunctionCallString(
         fieldType,
         "sia",
-        `${field.optional ? "" : "&"}${fieldName}`,
+        fieldName,
+        Boolean(field.optional),
       );
     } else {
       const fn = siaTypeFunctionMap[fieldType];
       if (fn) {
         serializer = createSiaAddTypeFunctionCallString(
           fn,
-          `${field.optional ? "*" : ""}${fieldName}`,
+          fieldName,
+          field.optional,
         );
       }
     }
 
     if (field.optional) {
-      fnBody += createIfConditionString(`${fieldName} != nil`, serializer);
+      fnBody += createIfConditionString(`"${field.name}" in obj`, serializer);
     } else {
       fnBody += serializer;
     }
