@@ -4,6 +4,7 @@ import { ILexingError, IRecognitionException } from "chevrotain";
 import { Command } from "commander";
 import { readFileSync, writeFileSync } from "fs";
 import { formatGoFile } from "./generator/common/go/index.js";
+import { formatPythonFile } from "./generator/common/py/index.js";
 import { Extension } from "./generator/common/types.js";
 import { generateSia, getExtension } from "./generator/index.js";
 import { compile } from "./index.js";
@@ -53,6 +54,8 @@ program
 
       if (extension === Extension.GO) {
         formatGoFile(newFileName);
+      } else if (extension === Extension.PY) {
+        formatPythonFile(newFileName);
       }
 
       console.info(`Sia file written to ${newFileName}`);
