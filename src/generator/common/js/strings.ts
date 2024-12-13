@@ -9,7 +9,7 @@ export const createSiaImportString = (imports: string[]) => {
     return "";
   }
 
-  return `import { ${imports.join(", ")} } from "sializer";`;
+  return `import { ${imports.join(", ")} } from "@timeleap/sia";`;
 };
 
 export const createSiaAddTypeFunctionCallString = (

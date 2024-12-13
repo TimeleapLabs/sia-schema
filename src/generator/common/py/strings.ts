@@ -7,7 +7,7 @@ export const createSiaImportString = (imports: string[]) => {
     return "";
   }
 
-  return `from sializer import (\n${imports.join(",\n")}\n)`;
+  return `from sia import (\n${imports.join(",\n")}\n)`;
 };
 
 export const createAttributeString = (name: string, value: string) => {
