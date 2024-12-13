@@ -7,7 +7,7 @@ export const createSiaImportString = (hasBigInt: boolean) => {
   if (hasBigInt) {
     importString += '"math/big"\n';
   }
-  importString += 'sializer "github.com/pouya-eghbali/go-sia/v2/pkg"\n';
+  importString += 'sializer "github.com/TimeleapLabs/go-sia/v2/pkg"\n';
 
   return importString + ")";
 };
