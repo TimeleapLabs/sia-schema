@@ -20,10 +20,6 @@ export enum SiaType {
   ByteArray64 = "byte64",
   Bool = "bool",
   BigInt = "bigint",
-  Array8 = "array8",
-  Array16 = "array16",
-  Array32 = "array32",
-  Array64 = "array64",
 }
 
 export enum Extension {

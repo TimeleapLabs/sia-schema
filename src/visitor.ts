@@ -19,6 +19,7 @@ interface FieldDefinition {
   type: string;
   optional?: boolean;
   isArray?: boolean;
+  arraySize?: number;
   defaultValue?: string | number | boolean;
   min?: number;
   max?: number;
@@ -73,7 +74,6 @@ class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
   field(ctx: FieldCstChildren): FieldDefinition {
     const name = ctx.Identifier[0].image;
     const optional = ctx.OptionalMark !== undefined;
-    const isArray = ctx.array !== undefined;
     const type = ctx.typeOptions
       ? ctx.Identifier[1].image
       : ctx.Identifier[1].image;
@@ -81,7 +81,14 @@ class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
     const fieldDef: FieldDefinition = { name, type };
 
     if (optional) fieldDef.optional = true;
-    if (isArray) fieldDef.isArray = true;
+    if (ctx.array !== undefined) {
+      fieldDef.isArray = true;
+      if (ctx.array[0].children.NumberLiteral) {
+        fieldDef.arraySize = Number(
+          ctx.array[0].children.NumberLiteral[0].image,
+        );
+      }
+    }
     if (ctx.typeOptions)
       Object.assign(fieldDef, this.visit(ctx.typeOptions[0]));
     if (ctx.defaultValue)

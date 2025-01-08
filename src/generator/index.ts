@@ -1,6 +1,7 @@
 import { SchemaDefinition } from "../visitor.js";
 import { Extension } from "./common/types.js";
 import { generateJs, isJsProject } from "./javascript.js";
+import { generateTs, isTsProject } from "./typescript.js";
 
 export const getExtension = (extension?: string) => {
   if (extension && !Object.values(Extension).includes(extension as Extension)) {
@@ -9,7 +10,9 @@ export const getExtension = (extension?: string) => {
 
   // TODO: Add Ts, Go and Python support
   if (!extension) {
-    if (isJsProject()) {
+    if (isTsProject()) {
+      return Extension.TS;
+    } else if (isJsProject()) {
       return Extension.JS;
     }
   }
@@ -30,6 +33,9 @@ export const generateSia = (sir: SchemaDefinition[], extension: Extension) => {
   switch (extension) {
     case Extension.JS:
       processor = generateJs;
+      break;
+    case Extension.TS:
+      processor = generateTs;
       break;
   }
 
