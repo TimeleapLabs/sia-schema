@@ -29,28 +29,42 @@ However, the library's API is quite raw, and requires some previous knowledge of
 Check this example:
 
 ```javascript
-new Sia().addString32("Andrey").addUInt32(25).addString32("andrey@sia.com")
-  .content;
+new Sia().addString8("Andrey").addUInt8(25).addAscii("andrey@sia.com").content;
 ```
 
 Now, imagine you have to do this for every single type, having to deal with nested types, arrays, etc. That's where this schema compiler comes to help.
 
 ## Usage
 
-First, you need a schema:
+You can write your schema in a `.sia` file, in the following format:
 
 ```sia
 schema Person {
-  name    text
+  name    string8
   age?    int32(min = 0, max = 120)
   email?  text(encoding = "ascii")
 }
 ```
 
-This will generate the exact same code as above.
+And then run the compiler:
+
+```bash
+npx sia compile file.sia
+```
+
+This will generate a file with all imports, sample objects, functions and the Sia instance for the schema.
+
+Run `npx sia compile --help` to see the available options.
+
+## Generated code
+
+The generated code is already formatted by prettier for JavaScript and TypeScript.
+
+For Go, the generated code is already formatted by `go fmt`, if Go is installed.
+
+For Python, the generated code is already formatted by `autopep8`, if `autopep8` is installed.
 
 ## Work in progress
 
-- [ ] Generate Python code from the intermediate representation
-- [ ] Generate Go code from the intermediate representation
 - [ ] Add support for functions
+- [ ] Full schema documentation
