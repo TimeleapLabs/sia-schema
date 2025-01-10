@@ -2,13 +2,18 @@ import { FieldDefinition } from "../../../visitor.js";
 import { getStringTypeFromLength, isAnyString, isByteArray } from "../index.js";
 import { getDefaultValueForType } from "../js/index.js";
 import {
+  siaTypeArraySizeDeserializerMap,
   siaTypeArraySizeFunctionMap,
+  siaTypeDeserializerMap,
   siaTypeFunctionMap,
   siaTypeSerializerArrayItemMap,
 } from "../js/maps.js";
 import {
+  createCustomDeserializerFunctionCallString,
   createCustomSerializerFunctionCallString,
   createSiaAddTypeFunctionCallString,
+  createSiaReadArrayFunctionCallString,
+  createSiaReadTypeFunctionCallString,
 } from "../js/strings.js";
 import { SiaType } from "../types.js";
 import { generateInterfaceFieldString } from "./strings.js";
@@ -85,6 +90,29 @@ export const generateArraySerializer = (
   }
 };
 
+export const generateArrayDeserializer = (
+  fieldType: SiaType,
+  fieldName: string,
+  arraySize?: number,
+  schemaType?: string,
+) => {
+  if (isByteArray(fieldType)) {
+    return createSiaReadTypeFunctionCallString(
+      siaTypeDeserializerMap[fieldType],
+      fieldName,
+    );
+  } else {
+    return createSiaReadArrayFunctionCallString(
+      arraySize
+        ? siaTypeArraySizeDeserializerMap[arraySize]
+        : siaTypeArraySizeDeserializerMap[8],
+      siaTypeDeserializerMap[fieldType],
+      fieldName,
+      schemaType,
+    );
+  }
+};
+
 export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
   let fnBody = "";
 
@@ -129,6 +157,43 @@ export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
       }
     }
   });
+
+  return fnBody;
+};
+
+export const generateDeserializerFunctionBody = (
+  fields: FieldDefinition[],
+  schemaType: string,
+) => {
+  let fnBody = `const obj${schemaType ? `: ${schemaType}` : ""} = {\n`;
+
+  fields.forEach((field) => {
+    let fieldType = field.type as SiaType;
+    if (fieldType === SiaType.String) {
+      fieldType = getStringTypeFromLength(field.max);
+    }
+
+    if (field.isArray) {
+      fnBody += generateArrayDeserializer(
+        fieldType,
+        field.name,
+        field.arraySize,
+        schemaType,
+      );
+    } else if (!Object.values(SiaType).includes(fieldType)) {
+      fnBody += createCustomDeserializerFunctionCallString(
+        fieldType,
+        "sia",
+        field.name,
+      );
+    } else {
+      const fieldName = field.name;
+      const fn = siaTypeDeserializerMap[fieldType];
+      fnBody += createSiaReadTypeFunctionCallString(fn, fieldName);
+    }
+  });
+
+  fnBody += "};\n";
 
   return fnBody;
 };

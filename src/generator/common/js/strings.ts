@@ -22,6 +22,24 @@ export const createSiaAddTypeFunctionCallString = (
   return `sia.${fn}(${fieldName}${defaultValue ? ` ?? ${defaultValue}` : ""}${serializerArg});\n`;
 };
 
+export const createSiaReadArrayFunctionCallString = (
+  arrayFn: string,
+  typeFn: string,
+  fieldName: string,
+  schemaType?: string,
+) => {
+  return `${fieldName}: sia.${arrayFn}((sia${schemaType ? `: Sia` : ""}) => {
+    return sia.${typeFn}()
+  }),\n`;
+};
+
+export const createSiaReadTypeFunctionCallString = (
+  fn: string,
+  fieldName: string,
+) => {
+  return `${fieldName}: sia.${fn}(),\n`;
+};
+
 export const createIfConditionString = (condition: string, body: string) => {
   return `if (${condition}) {\n${body}\n}\n`;
 };
@@ -31,7 +49,15 @@ export const createCustomSerializerFunctionDeclarationString = (
   signature: string,
   body: string,
 ) => {
-  return `export function ${fnName}(${signature}) {\n${body}return sia;\n}\n`;
+  return `export function ${fnName}(${signature}) {\n${body}\nreturn sia;\n}\n`;
+};
+
+export const createDeserializerFunctionDeclarationString = (
+  fnName: string,
+  signature: string,
+  body: string,
+) => {
+  return `export function ${fnName}(${signature}) {\n${body}\nreturn obj;\n}\n`;
 };
 
 export const createCustomSerializerFunctionCallString = (
@@ -41,6 +67,14 @@ export const createCustomSerializerFunctionCallString = (
   defaultValue?: string,
 ) => {
   return `serialize${serializer}(${siaInstance}, ${fieldName}${defaultValue ? ` ?? ${defaultValue}` : ""});\n`;
+};
+
+export const createCustomDeserializerFunctionCallString = (
+  deserializer: string,
+  siaInstance: string,
+  fieldName: string,
+) => {
+  return `${fieldName}: deserialize${deserializer}(${siaInstance}),\n`;
 };
 
 export const createNamedObjectString = (

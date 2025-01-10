@@ -70,6 +70,10 @@ export class PythonGenerator implements Generator {
     return output;
   }
 
+  deserializers(): string {
+    return "";
+  }
+
   private generateSchemaFunction(schema: SchemaDefinition): string {
     const fnBody = generateSchemaFunctionBody(schema.fields);
     const fnName = `serialize${snakify(schema.name)}`;
@@ -90,6 +94,8 @@ export class PythonGenerator implements Generator {
       this.sampleObject(),
       "",
       this.siaInstance(),
+      "",
+      this.deserializers(),
     ];
 
     return parts.join("\n");

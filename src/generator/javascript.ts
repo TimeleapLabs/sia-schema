@@ -28,6 +28,10 @@ export class JavaScriptGenerator extends GenericJsTsGenerator {
   siaInstance(): string {
     return super.siaInstance();
   }
+
+  deserializers(): string {
+    return super.deserializers();
+  }
 }
 
 export const generateJs = async (schemas: SchemaDefinition[]) => {

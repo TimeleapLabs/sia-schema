@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "packageManager": "yarn@4.5.2",
   "dependencies": {
+    "@timeleap/sia": "^2.1.0",
     "chevrotain": "^11.0.3",
     "commander": "^12.1.0"
   },

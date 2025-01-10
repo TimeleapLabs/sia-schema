@@ -29,6 +29,10 @@ export class TypeScriptGenerator extends GenericJsTsGenerator {
     return super.siaInstance();
   }
 
+  deserializers(): string {
+    return super.deserializers();
+  }
+
   toString(): string {
     return super.toString();
   }

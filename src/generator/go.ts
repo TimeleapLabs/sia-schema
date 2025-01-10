@@ -73,6 +73,10 @@ export class GoGenerator implements Generator {
     return output;
   }
 
+  deserializers(): string {
+    return "";
+  }
+
   private generateSchemaFunction(schema: SchemaDefinition): string {
     const fnBody = generateSchemaFunctionBody(schema.fields);
     const fnName = `serialize${schema.name}`;
@@ -95,6 +99,8 @@ export class GoGenerator implements Generator {
       this.sampleObject(),
       "",
       this.siaInstance(),
+      "",
+      this.deserializers(),
     ];
 
     return parts.join("\n");

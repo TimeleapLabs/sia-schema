@@ -1,5 +1,5 @@
 import { FieldDefinition, SchemaDefinition } from "../../../visitor.js";
-import { isByteArray } from "../index.js";
+import { isAnyString, isByteArray } from "../index.js";
 import { SiaType } from "../types.js";
 import { siaTypeSerializerArrayItemMap } from "./maps.js";
 import { createAttributeString, createByteArrayString } from "./strings.js";
@@ -29,7 +29,10 @@ export const getDefaultValueForType = (
   field: SchemaDefinition["fields"][0],
 ): string => {
   if (field.defaultValue) {
-    return `"${field.defaultValue}"`;
+    if (isAnyString(field.type as SiaType)) {
+      return `"${field.defaultValue}"`;
+    }
+    return `${field.defaultValue}`;
   }
 
   if (field.type.startsWith("int") || field.type.startsWith("uint")) {

@@ -5,10 +5,12 @@ import {
 } from "./common/js/index.js";
 import {
   createCustomSerializerFunctionDeclarationString,
+  createDeserializerFunctionDeclarationString,
   createNamedObjectString,
   createSiaImportString,
 } from "./common/js/strings.js";
 import {
+  generateDeserializerFunctionBody,
   generateInterfaceFields,
   generateSchemaFunctionBody,
 } from "./common/ts/index.js";
@@ -27,7 +29,9 @@ export class GenericJsTsGenerator implements Generator {
 
   imports(): string {
     const requiredSerializers = getRequiredSerializers(this.sir);
-    return createSiaImportString(["Sia", ...requiredSerializers]);
+    return createSiaImportString(
+      [this.typed ? "Sia" : "", ...requiredSerializers].filter(Boolean),
+    );
   }
 
   types(): string {
@@ -84,6 +88,31 @@ export class GenericJsTsGenerator implements Generator {
     );
   }
 
+  deserializers(): string {
+    let output = "";
+
+    this.sir.forEach((schema) => {
+      output += this.generateDeserializerFunction(schema);
+      output += createLineBreakString(2);
+    });
+
+    return output;
+  }
+
+  private generateDeserializerFunction(schema: SchemaDefinition): string {
+    const fnBody = generateDeserializerFunctionBody(
+      schema.fields,
+      this.typed ? schema.name : "",
+    );
+    const fnName = `deserialize${schema.name}`;
+    const signature = this.typed ? `sia: Sia` : `sia`;
+    return createDeserializerFunctionDeclarationString(
+      fnName,
+      signature,
+      fnBody,
+    );
+  }
+
   toString(): string {
     const parts = [
       this.imports(),
@@ -93,6 +122,8 @@ export class GenericJsTsGenerator implements Generator {
       this.sampleObject(),
       "",
       this.siaInstance(),
+      "",
+      this.deserializers(),
     ];
 
     return parts.join("\n");

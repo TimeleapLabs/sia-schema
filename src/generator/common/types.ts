@@ -35,5 +35,6 @@ export interface Generator {
   types: () => string;
   sampleObject: () => string;
   siaInstance: () => string;
+  deserializers: () => string;
   toString: () => string;
 }
