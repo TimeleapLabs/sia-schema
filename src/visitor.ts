@@ -1,3 +1,4 @@
+import { SiaType } from "./generator/common/types.js";
 import { SiaSchemaParserInstance } from "./parser.js";
 import {
   DefaultValueCstChildren,
@@ -74,13 +75,21 @@ class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
   field(ctx: FieldCstChildren): FieldDefinition {
     const name = ctx.Identifier[0].image;
     const optional = ctx.OptionalMark !== undefined;
-    const type = ctx.typeOptions
-      ? ctx.Identifier[1].image
-      : ctx.Identifier[1].image;
+    const type = ctx.Identifier[1].image;
+
+    const startsWithCapital = /^[A-Z]/.test(type);
+    const isValidType =
+      Object.values(SiaType).includes(type as SiaType) || startsWithCapital;
+
+    if (!isValidType) {
+      throw new Error(`Invalid type: ${type}`);
+    }
 
     const fieldDef: FieldDefinition = { name, type };
 
-    if (optional) fieldDef.optional = true;
+    if (optional) {
+      fieldDef.optional = true;
+    }
     if (ctx.array !== undefined) {
       fieldDef.isArray = true;
       if (ctx.array[0].children.NumberLiteral) {
@@ -89,10 +98,12 @@ class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
         );
       }
     }
-    if (ctx.typeOptions)
+    if (ctx.typeOptions) {
       Object.assign(fieldDef, this.visit(ctx.typeOptions[0]));
-    if (ctx.defaultValue)
+    }
+    if (ctx.defaultValue) {
       fieldDef.defaultValue = this.visit(ctx.defaultValue[0]);
+    }
 
     return fieldDef;
   }
@@ -118,9 +129,15 @@ class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
   }
 
   defaultValue(ctx: DefaultValueCstChildren): string | number | boolean {
-    if (ctx.StringLiteral) return ctx.StringLiteral[0].image.slice(1, -1);
-    if (ctx.NumberLiteral) return Number(ctx.NumberLiteral[0].image);
-    if (ctx.Identifier) return ctx.Identifier[0].image;
+    if (ctx.StringLiteral) {
+      return ctx.StringLiteral[0].image.slice(1, -1);
+    }
+    if (ctx.NumberLiteral) {
+      return Number(ctx.NumberLiteral[0].image);
+    }
+    if (ctx.Identifier) {
+      return ctx.Identifier[0].image;
+    }
     return "";
   }
 }
