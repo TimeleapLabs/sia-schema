@@ -16,9 +16,10 @@ export const createSiaAddTypeFunctionCallString = (
   fn: string,
   fieldName: string,
   serializer?: string,
+  defaultValue?: string,
 ) => {
   const serializerArg = serializer ? `, ${serializer}` : "";
-  return `sia.${fn}(${fieldName}${serializerArg});\n`;
+  return `sia.${fn}(${fieldName}${defaultValue ? ` ?? ${defaultValue}` : ""}${serializerArg});\n`;
 };
 
 export const createIfConditionString = (condition: string, body: string) => {

@@ -1,5 +1,6 @@
 import { FieldDefinition } from "../../../visitor.js";
 import { getStringTypeFromLength, isAnyString, isByteArray } from "../index.js";
+import { getDefaultValueForType } from "../js/index.js";
 import {
   siaTypeArraySizeFunctionMap,
   siaTypeFunctionMap,
@@ -56,11 +57,14 @@ export const generateArraySerializer = (
   fieldType: SiaType,
   fieldName: string,
   arraySize?: number,
+  defaultValue?: string,
 ) => {
   if (isByteArray(fieldType)) {
     return createSiaAddTypeFunctionCallString(
       siaTypeFunctionMap[fieldType],
       fieldName,
+      undefined,
+      defaultValue,
     );
   } else {
     const serializer =
@@ -73,6 +77,7 @@ export const generateArraySerializer = (
         : siaTypeArraySizeFunctionMap[8],
       fieldName,
       serializer,
+      defaultValue,
     );
   }
 };
@@ -89,9 +94,19 @@ export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
     }
 
     if (field.isArray) {
-      fnBody += generateArraySerializer(fieldType, fieldName, field.arraySize);
+      fnBody += generateArraySerializer(
+        fieldType,
+        fieldName,
+        field.arraySize,
+        field.optional ? `[]` : undefined,
+      );
     } else if (isAnyString(fieldType) && field.encoding === "ascii") {
-      fnBody += createSiaAddTypeFunctionCallString("addAscii", fieldName);
+      fnBody += createSiaAddTypeFunctionCallString(
+        "addAscii",
+        fieldName,
+        undefined,
+        field.optional ? '""' : undefined,
+      );
     } else if (!Object.values(SiaType).includes(fieldType)) {
       fnBody += createCustomSerializerFunctionCallString(
         fieldType,
@@ -102,7 +117,12 @@ export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
     } else {
       const fn = siaTypeFunctionMap[fieldType];
       if (fn) {
-        fnBody += createSiaAddTypeFunctionCallString(fn, fieldName);
+        fnBody += createSiaAddTypeFunctionCallString(
+          fn,
+          fieldName,
+          undefined,
+          field.optional ? getDefaultValueForType(field) : undefined,
+        );
       }
     }
   });
