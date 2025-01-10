@@ -24,6 +24,9 @@ const getTypeScriptType = (fieldType: string, isArray: boolean): string => {
   if (fieldType === "bool") {
     return isArray ? makeArrayType("boolean") : "boolean";
   }
+  if (fieldType === "bigint") {
+    return isArray ? makeArrayType("bigint") : "bigint";
+  }
   if (fieldType.startsWith("byte")) {
     switch (fieldType) {
       case "byte16":
