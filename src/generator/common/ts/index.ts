@@ -7,7 +7,6 @@ import {
 } from "../js/maps.js";
 import {
   createCustomSerializerFunctionCallString,
-  createIfConditionString,
   createSiaAddTypeFunctionCallString,
 } from "../js/strings.js";
 import { SiaType } from "../types.js";
@@ -78,23 +77,6 @@ export const generateArraySerializer = (
   }
 };
 
-export const generateCustomSerializer = (
-  fieldName: string,
-  fieldType: SiaType,
-  optional: boolean | undefined,
-) => {
-  const serializer = createCustomSerializerFunctionCallString(
-    fieldType,
-    "sia",
-    fieldName,
-  );
-  if (optional) {
-    return createIfConditionString(fieldName, serializer);
-  } else {
-    return serializer;
-  }
-};
-
 export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
   let fnBody = "";
 
@@ -111,7 +93,12 @@ export const generateSchemaFunctionBody = (fields: FieldDefinition[]) => {
     } else if (isAnyString(fieldType) && field.encoding === "ascii") {
       fnBody += createSiaAddTypeFunctionCallString("addAscii", fieldName);
     } else if (!Object.values(SiaType).includes(fieldType)) {
-      fnBody += generateCustomSerializer(fieldName, fieldType, field.optional);
+      fnBody += createCustomSerializerFunctionCallString(
+        fieldType,
+        "sia",
+        fieldName,
+        field.optional ? `empty${fieldType}` : undefined,
+      );
     } else {
       const fn = siaTypeFunctionMap[fieldType];
       if (fn) {

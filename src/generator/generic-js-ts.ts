@@ -4,12 +4,9 @@ import {
   getRequiredSerializers,
 } from "./common/js/index.js";
 import {
-  createCustomSerializerFunctionCallString,
   createCustomSerializerFunctionDeclarationString,
   createNamedObjectString,
   createSiaImportString,
-  createSiaInstanceString,
-  createSiaResultString,
 } from "./common/js/strings.js";
 import {
   generateInterfaceFields,
@@ -43,37 +40,33 @@ export class GenericJsTsGenerator implements Generator {
   }
 
   sampleObject(): string {
-    const mainSchema = this.sir[0];
-    const fields = mainSchema.fields
-      .map((field) => generateAttribute(field, this.sir))
-      .join(createLineBreakString());
-    const objectType = mainSchema.name;
+    return this.sir
+      .sort((a, b) => {
+        const nested = a.fields.find((field) => field.type === b.name);
+        return nested ? 1 : -1;
+      })
+      .map((schema) => {
+        const fields = schema.fields
+          .map((field) => generateAttribute(field))
+          .join(createLineBreakString());
+        const objectType = schema.name;
 
-    return createNamedObjectString(
-      mainSchema.name.toLowerCase(),
-      fields,
-      this.typed ? objectType : undefined,
-    );
+        return createNamedObjectString(
+          `empty${schema.name}`,
+          fields,
+          this.typed ? objectType : undefined,
+        );
+      })
+      .join(createLineBreakString(2));
   }
 
   siaInstance(): string {
-    const mainSchema = this.sir[0];
-    const instanceName = `${mainSchema.name.toLowerCase()}Sia`;
-    let output = createSiaInstanceString(mainSchema.name);
-    output += createLineBreakString();
+    let output = "";
 
     this.sir.forEach((schema) => {
       output += this.generateSchemaFunction(schema);
       output += createLineBreakString(2);
     });
-
-    output += createCustomSerializerFunctionCallString(
-      mainSchema.name,
-      instanceName,
-      mainSchema.name.toLowerCase(),
-    );
-    output += createLineBreakString(2);
-    output += createSiaResultString(instanceName);
 
     return output;
   }
@@ -81,7 +74,9 @@ export class GenericJsTsGenerator implements Generator {
   private generateSchemaFunction(schema: SchemaDefinition): string {
     const fnBody = generateSchemaFunctionBody(schema.fields);
     const fnName = `serialize${schema.name}`;
-    const signature = this.typed ? `sia: Sia, obj: ${schema.name}` : `sia, obj`;
+    const signature = this.typed
+      ? `sia: Sia, obj: ${schema.name} = empty${schema.name}`
+      : `sia, obj = empty${schema.name}`;
     return createCustomSerializerFunctionDeclarationString(
       fnName,
       signature,

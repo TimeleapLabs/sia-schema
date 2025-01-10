@@ -43,10 +43,11 @@ export const getDefaultValueForType = (
   return '""';
 };
 
-export const generateAttribute = (
-  field: FieldDefinition,
-  schemas: SchemaDefinition[],
-): string => {
+const capitalizeFirstLetter = (str: string): string => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+export const generateAttribute = (field: FieldDefinition): string => {
   if (field.isArray && isByteArray(field.type as SiaType)) {
     return createAttributeString(
       field.name,
@@ -57,24 +58,8 @@ export const generateAttribute = (
   }
 
   if (!Object.values(SiaType).includes(field.type as SiaType)) {
-    return generateNestedObjectAttribute(field, schemas);
+    return `${field.name}: empty${capitalizeFirstLetter(field.name)},`;
   }
 
   return createAttributeString(field.name, getDefaultValueForType(field));
-};
-
-export const generateNestedObjectAttribute = (
-  field: SchemaDefinition["fields"][0],
-  schemas: SchemaDefinition[],
-): string => {
-  const referencedSchema = schemas.find((s) => s.name === field.type);
-  if (!referencedSchema) {
-    throw new Error(`Referenced schema ${field.type} not found`);
-  }
-
-  const nestedFields = referencedSchema.fields
-    .map((nestedField) => generateAttribute(nestedField, schemas))
-    .join("\n");
-
-  return createAttributeString(field.name, `{\n${nestedFields}\n}`);
 };

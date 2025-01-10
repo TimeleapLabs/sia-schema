@@ -1,5 +1,5 @@
 export const generateInterfaceString = (typeName: string, body: string) => {
-  return `interface ${typeName} {\n${body}\n}`;
+  return `export interface ${typeName} {\n${body}\n}`;
 };
 
 export const generateInterfaceFieldString = (

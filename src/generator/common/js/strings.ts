@@ -30,15 +30,16 @@ export const createCustomSerializerFunctionDeclarationString = (
   signature: string,
   body: string,
 ) => {
-  return `function ${fnName}(${signature}) {\n${body}return sia;\n}\n`;
+  return `export function ${fnName}(${signature}) {\n${body}return sia;\n}\n`;
 };
 
 export const createCustomSerializerFunctionCallString = (
   serializer: string,
   siaInstance: string,
   fieldName: string,
+  defaultValue?: string,
 ) => {
-  return `serialize${serializer}(${siaInstance}, ${fieldName});\n`;
+  return `serialize${serializer}(${siaInstance}, ${fieldName}${defaultValue ? ` ?? ${defaultValue}` : ""});\n`;
 };
 
 export const createNamedObjectString = (
