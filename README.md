@@ -2,7 +2,7 @@
 
 A schema compiler for the fastest serializing library.
 
-Don't know what Sia is? Check out the [Github repo](https://github.com/pouya-eghbali/sia).
+Don't know what Sia is? Check out the [Github repo](https://github.com/TimeleapLabs/ts-sia).
 
 > ⚠️ This project is still in the early stages of development. Check the [roadmap](#work-in-progress) for more information.
 
@@ -29,8 +29,7 @@ However, the library's API is quite raw, and requires some previous knowledge of
 Check this example:
 
 ```javascript
-new Sia().addString32("Andrey").addUInt32(25).addString32("andrey@sia.com")
-  .content;
+new Sia().addString8("Andrey").addUInt32(25).addAscii("andrey@sia.com").content;
 ```
 
 Now, imagine you have to do this for every single type, having to deal with nested types, arrays, etc. That's where this schema compiler comes to help.
@@ -41,9 +40,9 @@ First, you need a schema:
 
 ```sia
 schema Person {
-  name    text
-  age?    int32(min = 0, max = 120)
-  email?  text(encoding = "ascii")
+  name    string8
+  age?    int32
+  email?  string(encoding = "ascii")
 }
 ```
 

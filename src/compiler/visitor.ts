@@ -6,7 +6,7 @@ import {
   SchemaCstChildren,
   SiaSchemaCstChildren,
   TypeOptionsCstChildren,
-} from "./types/parser.js";
+} from "../types/parser.js";
 
 interface SchemaDefinition {
   name: string;

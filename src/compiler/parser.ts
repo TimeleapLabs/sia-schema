@@ -58,8 +58,8 @@ class ECSNParser extends CstParser {
     this.CONSUME(Identifier); // Field name
     this.OPTION(() => this.CONSUME(OptionalMark)); // Optional marker (e.g., `fieldName?`)
     this.CONSUME1(Identifier); // Field type
-    this.OPTION1(() => this.SUBRULE(this.array)); // Array
     this.OPTION2(() => this.SUBRULE(this.typeOptions)); // Type options
+    this.OPTION1(() => this.SUBRULE(this.array)); // Array
     this.OPTION3(() => this.SUBRULE(this.defaultValue)); // Default value
   });
 

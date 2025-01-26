@@ -1,18 +1,13 @@
 schema Person {
-  name    text
-  age?    int32(min = 0, max = 120)
-  email?  text(encoding = "ascii")
-  tags    text[]
+  name    string8
+  age?    int32
+  email?  string8(encoding = "ascii")[]
+  tags    string8[]
   address Address
 }
 
 schema Address {
-  street  text = "Default Street"
-  city    text
-  zip     int32
-}
-
-function add returns int64 {
-  lhs int32
-  rhs int32
+  street?  string(encoding = "ascii") = "Default Street"
+  city     string8
+  zip      int32
 }
