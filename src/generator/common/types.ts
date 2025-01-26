@@ -28,16 +28,20 @@ export const NUMBER_TYPES = [
   "uint64",
 ] as const;
 
+export const BOOLEAN_TYPES = ["bool"] as const;
+
 export const FIELD_TYPES = [
   ...STRING_TYPES,
   ...BYTE_TYPES,
   ...NUMBER_TYPES,
+  ...BOOLEAN_TYPES,
 ] as const;
 
 export type StringType = (typeof STRING_TYPES)[number];
 export type ByteType = (typeof BYTE_TYPES)[number];
 export type NumberType = (typeof NUMBER_TYPES)[number];
-export type FieldType = StringType | ByteType | NumberType;
+export type BooleanType = (typeof BOOLEAN_TYPES)[number];
+export type FieldType = StringType | ByteType | NumberType | BooleanType;
 
 export interface CodeGenerator {
   toCode: () => Promise<string>;

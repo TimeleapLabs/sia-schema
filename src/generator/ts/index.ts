@@ -26,7 +26,7 @@ export class TSGenerator implements CodeGenerator {
   }
 
   async toCode(): Promise<string> {
-    const parts: string[] = [];
+    const parts: string[] = ["import { Sia } from '@timeleap/sia';"];
 
     for (const schema of this.schema) {
       if (schema.type === "schema") {
@@ -56,11 +56,12 @@ export class TSGenerator implements CodeGenerator {
     // Generate a helper function to serialize the schema
     const argName = camelCase(schema.name);
     parts.push(
-      `export function serialize${schema.name}(sia: Sia, ${argName}: ${schema.name}): Uint8Array {`,
+      `export function serialize${schema.name}(sia: Sia, ${argName}: ${schema.name}): Sia {`,
     );
 
     for (const field of schema.fields) {
       const name = this.getSerializeFunctionName(field);
+      const args = this.getSerializeFunctionArgs(field);
       const valueParts = [`${argName}.${field.name}`];
 
       if (field.optional) {
@@ -74,9 +75,10 @@ export class TSGenerator implements CodeGenerator {
       }
 
       const value = valueParts.join(" ");
-      parts.push(`  ${name}(sia, ${value});`);
+      parts.push(`  ${name}(${args}${value});`);
     }
 
+    parts.push("  return sia;");
     parts.push("}\n");
 
     // Generate a helper function to deserialize the schema
@@ -87,7 +89,9 @@ export class TSGenerator implements CodeGenerator {
 
     for (const field of schema.fields) {
       const name = this.getDeserializeFunctionName(field);
-      parts.push(`    ${field.name}: ${name}(sia),`);
+      const args = this.getDeserializeFunctionArgs(field);
+
+      parts.push(`    ${field.name}: ${name}(${args}),`);
     }
 
     parts.push(`  }`);
@@ -109,6 +113,10 @@ export class TSGenerator implements CodeGenerator {
       return "Uint8Array | Buffer";
     }
 
+    if (fieldType === "bool") {
+      return "boolean";
+    }
+
     return fieldType;
   }
 
@@ -121,11 +129,47 @@ export class TSGenerator implements CodeGenerator {
       throw new Error(`Unknown encoding: ${field.encoding}`);
     }
 
+    if (BYTE_TYPES.includes(field.type as ByteType)) {
+      switch (field.type) {
+        case "byteN":
+          return "sia.addByteArrayN";
+        case "byte8":
+          return "sia.addByteArray8";
+        case "byte16":
+          return "sia.addByteArray16";
+        case "byte32":
+          return "sia.addByteArray32";
+        case "byte64":
+          return "sia.addByteArray64";
+      }
+    }
+
+    if (NUMBER_TYPES.includes(field.type as NumberType)) {
+      switch (field.type) {
+        case "uint8":
+          return "sia.addUInt8";
+        case "uint16":
+          return "sia.addUInt16";
+        case "uint32":
+          return "sia.addUInt32";
+        case "uint64":
+          return "sia.addUInt64";
+      }
+    }
+
     if (FIELD_TYPES.includes(field.type as FieldType)) {
       return `sia.add${pascalCase(field.type)}`;
     }
 
     return `serialize${pascalCase(field.type)}`;
+  }
+
+  private getSerializeFunctionArgs(field: FieldDefinition): string {
+    if (FIELD_TYPES.includes(field.type as FieldType)) {
+      return "";
+    }
+
+    return "sia, ";
   }
 
   private getDeserializeFunctionName(field: FieldDefinition): string {
@@ -137,11 +181,51 @@ export class TSGenerator implements CodeGenerator {
       throw new Error(`Unknown encoding: ${field.encoding}`);
     }
 
+    if (BYTE_TYPES.includes(field.type as ByteType)) {
+      switch (field.type) {
+        case "byteN":
+          return "sia.readByteArrayN";
+        case "byte8":
+          return "sia.readByteArray8";
+        case "byte16":
+          return "sia.readByteArray16";
+        case "byte32":
+          return "sia.readByteArray32";
+        case "byte64":
+          return "sia.readByteArray64";
+      }
+    }
+
+    if (NUMBER_TYPES.includes(field.type as NumberType)) {
+      switch (field.type) {
+        case "uint8":
+          return "sia.readUInt8";
+        case "uint16":
+          return "sia.readUInt16";
+        case "uint32":
+          return "sia.readUInt32";
+        case "uint64":
+          return "sia.readUInt64";
+      }
+    }
+
     if (FIELD_TYPES.includes(field.type as FieldType)) {
       return `sia.read${pascalCase(field.type)}`;
     }
 
     return `deserialize${pascalCase(field.type)}`;
+  }
+
+  private getDeserializeFunctionArgs(field: FieldDefinition): string {
+    if (field.type === "byteN") {
+      return `${field.length}`;
+    }
+
+    if (FIELD_TYPES.includes(field.type as FieldType)) {
+      return "";
+    }
+
+    return "sia";
   }
 
   private getDefaultValue(fieldType: FieldType): string {
@@ -155,6 +239,10 @@ export class TSGenerator implements CodeGenerator {
 
     if (BYTE_TYPES.includes(fieldType as ByteType)) {
       return "new Uint8Array(0)";
+    }
+
+    if (fieldType === "bool") {
+      return "false";
     }
 
     return "null";
