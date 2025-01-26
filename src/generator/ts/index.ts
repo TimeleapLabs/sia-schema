@@ -83,7 +83,7 @@ export class TSGenerator implements CodeGenerator {
 
     // Generate a helper function to deserialize the schema
     parts.push(
-      `export function deserialize${schema.name}(sia: Sia): ${schema.name} {`,
+      `export function decode${schema.name}(sia: Sia): ${schema.name} {`,
     );
     parts.push(`  return {`);
 
@@ -161,7 +161,7 @@ export class TSGenerator implements CodeGenerator {
       return `sia.add${pascalCase(field.type)}`;
     }
 
-    return `serialize${pascalCase(field.type)}`;
+    return `encode${pascalCase(field.type)}`;
   }
 
   private getSerializeFunctionArgs(field: FieldDefinition): string {
