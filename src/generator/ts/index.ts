@@ -56,7 +56,7 @@ export class TSGenerator implements CodeGenerator {
     // Generate a helper function to serialize the schema
     const argName = camelCase(schema.name);
     parts.push(
-      `export function serialize${schema.name}(sia: Sia, ${argName}: ${schema.name}): Sia {`,
+      `export function encode${schema.name}(sia: Sia, ${argName}: ${schema.name}): Sia {`,
     );
 
     for (const field of schema.fields) {
@@ -213,7 +213,7 @@ export class TSGenerator implements CodeGenerator {
       return `sia.read${pascalCase(field.type)}`;
     }
 
-    return `deserialize${pascalCase(field.type)}`;
+    return `decode${pascalCase(field.type)}`;
   }
 
   private getDeserializeFunctionArgs(field: FieldDefinition): string {
