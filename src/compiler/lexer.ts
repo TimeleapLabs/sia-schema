@@ -18,7 +18,9 @@ const NumberLiteral = createToken({
   pattern: /-?\d+(\.\d+)?/,
 });
 
-const Function = createToken({ name: "Function", pattern: /function/ });
+const Method = createToken({ name: "Method", pattern: /method/ });
+const Plugin = createToken({ name: "Plugin", pattern: /plugin/ });
+const As = createToken({ name: "As", pattern: /as/ });
 const Returns = createToken({ name: "Returns", pattern: /returns/ });
 const Schema = createToken({ name: "Schema", pattern: /schema/ });
 const Equals = createToken({ name: "Equals", pattern: /=/ });
@@ -28,6 +30,7 @@ const LParen = createToken({ name: "LParen", pattern: /\(/ });
 const RParen = createToken({ name: "RParen", pattern: /\)/ });
 const LSquare = createToken({ name: "LSquare", pattern: /\[/ });
 const RSquare = createToken({ name: "RSquare", pattern: /]/ });
+const Dot = createToken({ name: "Dot", pattern: /\./ });
 const OptionalMark = createToken({
   name: "OptionalMark",
   pattern: /\?/,
@@ -42,7 +45,9 @@ const WhiteSpace = createToken({
 // Token list
 export const SiaSchemaTokens = [
   WhiteSpace,
-  Function,
+  Plugin,
+  Method,
+  As,
   Returns,
   Schema,
   Identifier,
@@ -57,6 +62,7 @@ export const SiaSchemaTokens = [
   RSquare,
   OptionalMark,
   Comma,
+  Dot,
 ];
 
 // Create the lexer
@@ -65,7 +71,9 @@ export const SiaSchemaLexerInstance = new Lexer(SiaSchemaTokens);
 export {
   Comma,
   Equals,
-  Function,
+  Plugin,
+  Method,
+  As,
   Identifier,
   LCurly,
   LParen,
@@ -79,4 +87,5 @@ export {
   Schema,
   StringLiteral,
   WhiteSpace,
+  Dot,
 };

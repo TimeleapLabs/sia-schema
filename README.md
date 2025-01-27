@@ -50,10 +50,10 @@ This will generate the exact same code as above.
 
 ## Work in progress
 
-| Language   | Basic Support | Arrays | Functions |
-| ---------- | ------------- | ------ | --------- |
-| TypeScript | 👍            | ❌     | ❌        |
-| JavaScript | ❌            | ❌     | ❌        |
-| Python     | ❌            | ❌     | ❌        |
-| Go         | ❌            | ❌     | ❌        |
-| C/C++      | ❌            | ❌     | ❌        |
+| Language   | Basic Support | Arrays | Hash Maps | Plugins |
+| ---------- | ------------- | ------ | --------- | ------- |
+| TypeScript | 👍            | ❌     | ❌        | 👍      |
+| JavaScript | ❌            | ❌     | ❌        | ❌      |
+| Python     | ❌            | ❌     | ❌        | ❌      |
+| Go         | ❌            | ❌     | ❌        | ❌      |
+| C/C++      | ❌            | ❌     | ❌        | ❌      |

@@ -32,7 +32,7 @@ const irAction = async (file: string, options: Options) => {
   }
 };
 
-export const compileCommand = new Command("ir")
+export const irCommand = new Command("ir")
   .description("Compile a .sia file to intermediate representation")
   .argument("<file>", "file to compile")
   .option("-s, --string", "display the result as a string")

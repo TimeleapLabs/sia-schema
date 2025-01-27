@@ -2,7 +2,9 @@ import { CstParser, Rule } from "chevrotain";
 import {
   Comma,
   Equals,
-  Function,
+  Plugin,
+  Method,
+  Dot,
   Identifier,
   LCurly,
   LParen,
@@ -16,6 +18,7 @@ import {
   Schema,
   SiaSchemaTokens,
   StringLiteral,
+  As,
 } from "./lexer.js";
 
 class ECSNParser extends CstParser {
@@ -28,7 +31,7 @@ class ECSNParser extends CstParser {
     this.MANY(() =>
       this.OR([
         { ALT: () => this.SUBRULE(this.schema) },
-        { ALT: () => this.SUBRULE(this.function) },
+        { ALT: () => this.SUBRULE(this.plugin) },
       ]),
     );
   });
@@ -42,15 +45,62 @@ class ECSNParser extends CstParser {
     this.CONSUME(RCurly);
   });
 
-  // Root rule for a function
-  public function = this.RULE("function", () => {
-    this.CONSUME(Function); // Schema name
-    this.CONSUME(Identifier); // Function name
-    this.CONSUME(Returns);
-    this.CONSUME1(Identifier); // Return type
+  public plugin = this.RULE("plugin", () => {
+    this.CONSUME(Plugin); // Plugin keyword
+    this.SUBRULE(this.pluginName); // Plugin name
+    this.OPTION(() => this.SUBRULE(this.asName)); // As name
     this.CONSUME(LCurly);
-    this.MANY(() => this.SUBRULE(this.field)); // Zero or more fields
+    this.MANY(() => this.SUBRULE(this.method)); // Zero or more method
     this.CONSUME(RCurly);
+  });
+
+  public asName = this.RULE("asName", () => {
+    this.CONSUME(As); // As keyword
+    this.CONSUME(Identifier); // As name
+  });
+
+  public pluginName = this.RULE("pluginName", () => {
+    this.CONSUME(Identifier); // Plugin name
+    this.MANY(() => {
+      this.CONSUME(Dot);
+      this.CONSUME1(Identifier);
+    });
+  });
+
+  // Root rule for a method
+  public method = this.RULE("method", () => {
+    this.CONSUME(Method); // Schema name
+    this.CONSUME(Identifier); // Method name
+    this.SUBRULE(this.typeOptions); // Type options
+    this.SUBRULE(this.params); // Method parameters
+    this.SUBRULE(this.returns); // Returns
+  });
+
+  public params = this.RULE("params", () => {
+    this.OR([
+      {
+        ALT: () => {
+          this.CONSUME(LCurly);
+          this.MANY(() => this.SUBRULE(this.field)); // Zero or more fields
+          this.CONSUME(RCurly);
+        },
+      },
+      { ALT: () => this.CONSUME(Identifier) },
+    ]);
+  });
+
+  public returns = this.RULE("returns", () => {
+    this.CONSUME(Returns); // Returns keyword
+    this.OR([
+      {
+        ALT: () => {
+          this.CONSUME(LCurly);
+          this.MANY(() => this.SUBRULE(this.field)); // Zero or more fields
+          this.CONSUME(RCurly);
+        },
+      },
+      { ALT: () => this.CONSUME(Identifier) },
+    ]);
   });
 
   // Rule for a field

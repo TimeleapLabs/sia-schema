@@ -13,30 +13,152 @@ import type {
   ByteType,
 } from "@/generator/common/types.js";
 
-import type { FieldDefinition, SchemaDefinition } from "@/compiler/visitor.js";
+import type {
+  Definition,
+  FieldDefinition,
+  MethodDefinition,
+  PluginDefinition,
+  SchemaDefinition,
+} from "@/compiler/visitor.js";
 
 import { camelCase, pascalCase } from "change-case";
 import { format } from "prettier";
 
 export class TSGenerator implements CodeGenerator {
-  private schema: SchemaDefinition[];
+  private schema: Definition[];
 
-  constructor(schema: SchemaDefinition[]) {
+  constructor(schema: Definition[]) {
     this.schema = schema;
   }
 
   async toCode(): Promise<string> {
-    const parts: string[] = ["import { Sia } from '@timeleap/sia';"];
+    const imports = { sia: true, client: false };
+    const parts: string[] = [];
 
     for (const schema of this.schema) {
       if (schema.type === "schema") {
         parts.push(this.schemaToCode(schema));
-      } else {
-        throw new Error("Unknown top-level type");
+      } else if (schema.type === "plugin") {
+        imports.client = true;
+        parts.push(this.pluginToCode(schema));
       }
     }
 
+    if (imports.client) {
+      parts.unshift(
+        "import { Client, Function } from '@timeleap/unchained-client';",
+      );
+    }
+
+    if (imports.sia) {
+      parts.unshift("import { Sia } from '@timeleap/sia';");
+    }
+
     return await format(parts.join("\n\n"), { parser: "typescript" });
+  }
+
+  pluginToCode(plugin: PluginDefinition): string {
+    const parts = [`export class ${plugin.as} {`];
+    parts.push("private methods: Map<string, Function> = new Map();");
+    parts.push(`private pluginName = "${plugin.name}";\n`);
+
+    parts.push("  constructor(private client: Client) {}\n");
+
+    parts.push(`static connect(client: Client): ${plugin.as} {`);
+    parts.push(`  return new ${plugin.as}(client);`);
+    parts.push("}\n");
+
+    parts.push(
+      "  private getMethod(method: string, timeout: number): Function {",
+    );
+    parts.push("    if (!this.methods.has(method)) {");
+    parts.push("      this.methods.set(method, this.client.method({");
+    parts.push("        plugin: this.pluginName,");
+    parts.push("        method,");
+    parts.push("        timeout,");
+    parts.push("      }));");
+    parts.push("    }");
+    parts.push("    return this.methods.get(method)!;");
+    parts.push("  }\n");
+
+    for (const method of plugin.methods) {
+      parts.push(this.methodToCode(method));
+    }
+
+    parts.push("}");
+
+    return parts.join("\n");
+  }
+
+  methodToCode(method: MethodDefinition): string {
+    const parts = [`public async ${method.name}(sia: Sia,`];
+
+    if (Array.isArray(method.fields)) {
+      for (const field of method.fields) {
+        const optional = field.optional ? "?" : "";
+        const tsType = this.fieldTypeToTsType(field.type as FieldType);
+        parts.push(`  ${field.name}${optional}: ${tsType},`);
+      }
+    } else {
+      const field = method.fields;
+      const optional = field.optional ? "?" : "";
+      const tsType = this.fieldTypeToTsType(field.type as FieldType);
+      parts.push(`  ${field.name}${optional}: ${tsType},`);
+    }
+
+    parts.push("): Promise<");
+
+    if (Array.isArray(method.returns)) {
+      parts.push("{");
+      for (const field of method.returns) {
+        const tsType = this.fieldTypeToTsType(field.type as FieldType);
+        parts.push(`  ${field.name}: ${tsType},`);
+      }
+      parts.push("}");
+    } else {
+      const field = method.returns;
+      const tsType = this.fieldTypeToTsType(field.type as FieldType);
+      parts.push(`${tsType}`);
+    }
+
+    parts.push("> {");
+    if (Array.isArray(method.fields)) {
+      for (const field of method.fields) {
+        const name = this.getSerializeFunctionName(field);
+        const args = this.getSerializeFunctionArgs(field);
+        parts.push(`  ${name}(${args}${field.name});`);
+      }
+    } else {
+      const field = method.fields;
+      const name = this.getSerializeFunctionName(field);
+      const args = this.getSerializeFunctionArgs(field);
+      parts.push(`  ${name}(${args}${field.name});`);
+    }
+
+    const timeout = method.timeout ?? "5000";
+    parts.push(
+      `  const method = this.getMethod("${method.name}", ${timeout});`,
+    );
+    parts.push("  const result = await method.populate(sia).invoke();");
+
+    if (Array.isArray(method.returns)) {
+      parts.push("  const response = {}");
+      for (const field of method.returns) {
+        const name = this.getDeserializeFunctionName(field);
+        const args = this.getDeserializeFunctionArgs(field);
+        parts.push(`  response.${field.name} = ${name}(${args});`);
+      }
+    } else {
+      const field = method.returns;
+      const name = this.getDeserializeFunctionName(field);
+      const args = this.getDeserializeFunctionArgs(field);
+      parts.push(`  const response = ${name}(${args});`);
+    }
+
+    parts.push("  return response;");
+    parts.push("}\n");
+
+    return parts.join("\n");
   }
 
   schemaToCode(schema: SchemaDefinition): string {

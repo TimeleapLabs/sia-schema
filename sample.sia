@@ -11,3 +11,13 @@ schema Address {
   city     string8
   zip      int32
 }
+
+plugin swiss.timeleap.isWizard.v1 as Sorcery {
+  method isWizard(timeout = 5000) {
+    age       uint8
+    name      string8
+  } returns {
+    isWizard  bool
+    message   string8
+  }
+}

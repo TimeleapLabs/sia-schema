@@ -2,19 +2,37 @@ import { SiaSchemaParserInstance } from "./parser.js";
 import {
   DefaultValueCstChildren,
   FieldCstChildren,
-  FunctionCstChildren,
+  MethodCstChildren,
+  ParamsCstChildren,
+  PluginAsNameCstChildren,
+  PluginCstChildren,
+  PluginNameCstChildren,
+  ReturnsCstChildren,
   SchemaCstChildren,
   SiaSchemaCstChildren,
   TypeOptionsCstChildren,
 } from "../types/parser.js";
+import { camelCase, pascalCase } from "change-case";
 
-interface SchemaDefinition {
+interface BaseDefinition {
   name: string;
-  type: "schema" | "function";
+  type: "schema" | "plugin";
+}
+
+export interface PluginDefinition extends BaseDefinition {
+  type: "plugin";
+  methods: MethodDefinition[];
+  as: string;
+}
+
+export interface SchemaDefinition extends BaseDefinition {
+  type: "schema";
   fields: FieldDefinition[];
 }
 
-interface FieldDefinition {
+export type Definition = SchemaDefinition | PluginDefinition;
+
+export interface FieldDefinition {
   name: string;
   type: string;
   optional?: boolean;
@@ -23,12 +41,19 @@ interface FieldDefinition {
   [key: string]: unknown;
 }
 
+export interface MethodDefinition {
+  name: string;
+  fields: FieldDefinition | FieldDefinition[];
+  returns: FieldDefinition | FieldDefinition[];
+  timeout?: string;
+}
+
 const SiaSchemaBaseVisitor =
   SiaSchemaParserInstance.getBaseCstVisitorConstructor();
 
-class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
+export class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
   src: string = "";
-  private definitions: SchemaDefinition[] = [];
+  private definitions: Definition[] = [];
 
   constructor(src: string) {
     super();
@@ -36,9 +61,9 @@ class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
     this.src = src;
   }
 
-  siaSchema(ctx: SiaSchemaCstChildren): SchemaDefinition[] {
+  siaSchema(ctx: SiaSchemaCstChildren): Definition[] {
     ctx.schema?.forEach((schema) => this.visit(schema));
-    ctx.function?.forEach((func) => this.visit(func));
+    ctx.plugin?.forEach((plugin) => this.visit(plugin));
     return this.definitions;
   }
 
@@ -50,22 +75,50 @@ class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
       fields.push(this.visit(field));
     });
 
-    this.definitions.push({ name, type: "schema", fields });
+    this.definitions.push({ type: "schema", name, fields });
   }
 
-  function(ctx: FunctionCstChildren) {
+  plugin(ctx: PluginCstChildren) {
+    const name = this.visit(ctx.pluginName);
+    const as = ctx.asName ? this.visit(ctx.asName) : pascalCase(name);
+
+    const methods = ctx.method?.map((method) =>
+      this.visit(method),
+    ) as MethodDefinition[];
+
+    this.definitions.push({ type: "plugin", name, as, methods });
+  }
+
+  pluginName(ctx: PluginNameCstChildren) {
+    return ctx.Identifier.map((i) => i.image).join(".");
+  }
+
+  asName(ctx: PluginAsNameCstChildren) {
+    return ctx.Identifier[0].image;
+  }
+
+  method(ctx: MethodCstChildren): MethodDefinition {
     const name = ctx.Identifier[0].image;
-    const fields: FieldDefinition[] = [];
+    const fields = this.visit(ctx.params![0]);
+    const returns = this.visit(ctx.returns![0]);
+    const options = ctx.typeOptions ? this.visit(ctx.typeOptions[0]) : {};
+    return { name, fields, returns, ...options };
+  }
 
-    ctx.field?.forEach((field) => {
-      fields.push(this.visit(field));
-    });
+  params(ctx: ParamsCstChildren): FieldDefinition | FieldDefinition[] {
+    if (ctx.Identifier) {
+      const type = ctx.Identifier[0].image;
+      return { name: camelCase(type), type };
+    }
+    return ctx.field?.map((field) => this.visit(field)) ?? [];
+  }
 
-    this.definitions.push({
-      name,
-      type: "function",
-      fields,
-    });
+  returns(ctx: ReturnsCstChildren): FieldDefinition | FieldDefinition[] {
+    if (ctx.Identifier) {
+      const type = ctx.Identifier[0].image;
+      return { name: camelCase(type), type };
+    }
+    return ctx.field?.map((field) => this.visit(field)) ?? [];
   }
 
   field(ctx: FieldCstChildren): FieldDefinition {
@@ -115,5 +168,3 @@ class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
     return "";
   }
 }
-
-export { FieldDefinition, SchemaDefinition, SiaSchemaVisitor };
