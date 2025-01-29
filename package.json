@@ -1,5 +1,5 @@
 {
-  "name": "sia-schema",
+  "name": "@timeleap/sia-schema",
   "version": "1.3.0",
   "packageManager": "yarn@4.5.2",
   "dependencies": {

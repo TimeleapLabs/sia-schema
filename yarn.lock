@@ -247,6 +247,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@timeleap/sia-schema@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "@timeleap/sia-schema@workspace:."
+  dependencies:
+    "@eslint/js": "npm:^9.16.0"
+    "@types/node": "npm:^22.9.3"
+    change-case: "npm:^5.4.4"
+    chevrotain: "npm:^11.0.3"
+    commander: "npm:^12.1.0"
+    eslint: "npm:^9.16.0"
+    eslint-config-prettier: "npm:^9.1.0"
+    eslint-plugin-prettier: "npm:^5.2.1"
+    globals: "npm:^15.13.0"
+    prettier: "npm:^3.4.2"
+    tsc-alias: "npm:^1.8.10"
+    typescript: "npm:^5.7.2"
+    typescript-eslint: "npm:^8.17.0"
+  bin:
+    sia: dist/cli.js
+  languageName: unknown
+  linkType: soft
+
 "@types/estree@npm:^1.0.6":
   version: 1.0.6
   resolution: "@types/estree@npm:1.0.6"
@@ -1813,28 +1835,6 @@ __metadata:
   checksum: 10c0/1dbed0726dd0e1152a92696c76c7f06084eb32a90f0528d11acd764043aacf76994b2fb30aa1291a21bd019d6699164d048286309a278855ee7bec06cf6fb690
   languageName: node
   linkType: hard
-
-"sia-schema@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "sia-schema@workspace:."
-  dependencies:
-    "@eslint/js": "npm:^9.16.0"
-    "@types/node": "npm:^22.9.3"
-    change-case: "npm:^5.4.4"
-    chevrotain: "npm:^11.0.3"
-    commander: "npm:^12.1.0"
-    eslint: "npm:^9.16.0"
-    eslint-config-prettier: "npm:^9.1.0"
-    eslint-plugin-prettier: "npm:^5.2.1"
-    globals: "npm:^15.13.0"
-    prettier: "npm:^3.4.2"
-    tsc-alias: "npm:^1.8.10"
-    typescript: "npm:^5.7.2"
-    typescript-eslint: "npm:^8.17.0"
-  bin:
-    sia: dist/cli.js
-  languageName: unknown
-  linkType: soft
 
 "signal-exit@npm:^4.0.1":
   version: 4.1.0
