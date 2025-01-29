@@ -9,13 +9,13 @@ Don't know what Sia is? Check out the [Github repo](https://github.com/TimeleapL
 ## Installation
 
 ```bash
-npm install -g sia-schema
+npm install -g @timeleap/sia-schema
 ```
 
 Or using `npx`:
 
 ```bash
-npx sia-schema compile sample.sia
+npx @timeleap/sia-schema compile sample.sia
 ```
 
 Add the `--help` flag to see the available options.
