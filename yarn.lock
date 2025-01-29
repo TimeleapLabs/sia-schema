@@ -264,6 +264,8 @@ __metadata:
     tsc-alias: "npm:^1.8.10"
     typescript: "npm:^5.7.2"
     typescript-eslint: "npm:^8.17.0"
+  peerDependencies:
+    prettier: "*"
   bin:
     sia: dist/cli.js
   languageName: unknown
