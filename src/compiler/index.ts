@@ -1,9 +1,9 @@
-import { SiaSchemaLexerInstance } from "./lexer.js";
+import { tokenize } from "./lexer.js";
 import { SiaSchemaParserInstance } from "./parser.js";
 import { SchemaDefinition, SiaSchemaVisitor } from "./visitor.js";
 
 export const compile = (src: string) => {
-  const lexResult = SiaSchemaLexerInstance.tokenize(src);
+  const lexResult = tokenize(src);
 
   if (lexResult.errors.length > 0) {
     throw lexResult.errors[0];

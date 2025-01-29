@@ -65,8 +65,46 @@ export const SiaSchemaTokens = [
   Dot,
 ];
 
+const keywords = [Method, Plugin, As, Returns, Schema];
+
 // Create the lexer
 export const SiaSchemaLexerInstance = new Lexer(SiaSchemaTokens);
+
+export const tokenize = (src: string) => {
+  const { errors, tokens: rawTokens } = SiaSchemaLexerInstance.tokenize(src);
+
+  // When in method {} and schema {} blocks, all keywords are treated as identifiers
+  let maybeFieldDef = false;
+  let inFieldDef = false;
+
+  const tokens = rawTokens.map((token) => {
+    const { tokenType: type } = token;
+
+    if (inFieldDef && keywords.includes(type)) {
+      return {
+        ...token,
+        tokenType: Identifier,
+        tokenTypeIdx: Identifier.tokenTypeIdx!,
+      };
+    }
+
+    if (!inFieldDef && (type === Method || type === Schema)) {
+      maybeFieldDef = true;
+      return token;
+    }
+
+    if (type === RCurly) {
+      inFieldDef = false;
+      maybeFieldDef = false;
+    } else if (type === LCurly && maybeFieldDef) {
+      inFieldDef = true;
+    }
+
+    return token;
+  });
+
+  return { errors, tokens };
+};
 
 export {
   Comma,

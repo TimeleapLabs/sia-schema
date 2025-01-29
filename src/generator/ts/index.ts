@@ -44,16 +44,19 @@ export class TSGenerator implements CodeGenerator {
       }
     }
 
+    const importStatements = [];
+
+    if (imports.sia) {
+      importStatements.push("import { Sia } from '@timeleap/sia';");
+    }
+
     if (imports.client) {
-      parts.unshift(
+      importStatements.push(
         "import { Client, Function } from '@timeleap/unchained-client';",
       );
     }
 
-    if (imports.sia) {
-      parts.unshift("import { Sia } from '@timeleap/sia';");
-    }
-
+    parts.unshift(importStatements.join("\n"));
     return await format(parts.join("\n\n"), { parser: "typescript" });
   }
 
@@ -139,23 +142,29 @@ export class TSGenerator implements CodeGenerator {
     parts.push(
       `  const method = this.getMethod("${method.name}", ${timeout});`,
     );
-    parts.push("  const result = await method.populate(sia).invoke();");
+    parts.push("  const response = await method.populate(sia).invoke();");
 
     if (Array.isArray(method.returns)) {
-      parts.push("  const response = {}");
       for (const field of method.returns) {
-        const name = this.getDeserializeFunctionName(field);
-        const args = this.getDeserializeFunctionArgs(field);
-        parts.push(`  response.${field.name} = ${name}(${args});`);
+        const name = this.getDeserializeFunctionName(field, "response");
+        const args = this.getDeserializeFunctionArgs(field, "response");
+        const variable = camelCase(`resp_${field.name}`);
+        parts.push(`  const ${variable} = ${name}(${args});`);
       }
+      parts.push("  return {");
+      for (const field of method.returns) {
+        const variable = camelCase(`resp_${field.name}`);
+        parts.push(`    ${field.name}: ${variable},`);
+      }
+      parts.push("  };");
     } else {
       const field = method.returns;
       const name = this.getDeserializeFunctionName(field);
       const args = this.getDeserializeFunctionArgs(field);
       parts.push(`  const response = ${name}(${args});`);
+      parts.push("  return response;");
     }
 
-    parts.push("  return response;");
     parts.push("}\n");
 
     return parts.join("\n");
@@ -294,10 +303,13 @@ export class TSGenerator implements CodeGenerator {
     return "sia, ";
   }
 
-  private getDeserializeFunctionName(field: FieldDefinition): string {
+  private getDeserializeFunctionName(
+    field: FieldDefinition,
+    sia = "sia",
+  ): string {
     if (field.type === "string") {
       if (field.encoding === "ascii") {
-        return "sia.readAscii";
+        return `${sia}.readAscii`;
       }
 
       throw new Error(`Unknown encoding: ${field.encoding}`);
@@ -306,39 +318,42 @@ export class TSGenerator implements CodeGenerator {
     if (BYTE_TYPES.includes(field.type as ByteType)) {
       switch (field.type) {
         case "byteN":
-          return "sia.readByteArrayN";
+          return `${sia}.readByteArrayN`;
         case "byte8":
-          return "sia.readByteArray8";
+          return `${sia}.readByteArray8`;
         case "byte16":
-          return "sia.readByteArray16";
+          return `${sia}.readByteArray16`;
         case "byte32":
-          return "sia.readByteArray32";
+          return `${sia}.readByteArray32`;
         case "byte64":
-          return "sia.readByteArray64";
+          return `${sia}.readByteArray64`;
       }
     }
 
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
       switch (field.type) {
         case "uint8":
-          return "sia.readUInt8";
+          return `${sia}.readUInt8`;
         case "uint16":
-          return "sia.readUInt16";
+          return `${sia}.readUInt16`;
         case "uint32":
-          return "sia.readUInt32";
+          return `${sia}.readUInt32`;
         case "uint64":
-          return "sia.readUInt64";
+          return `${sia}.readUInt64`;
       }
     }
 
     if (FIELD_TYPES.includes(field.type as FieldType)) {
-      return `sia.read${pascalCase(field.type)}`;
+      return `${sia}.read${pascalCase(field.type)}`;
     }
 
     return `decode${pascalCase(field.type)}`;
   }
 
-  private getDeserializeFunctionArgs(field: FieldDefinition): string {
+  private getDeserializeFunctionArgs(
+    field: FieldDefinition,
+    sia = "sia",
+  ): string {
     if (field.type === "byteN") {
       return `${field.length}`;
     }
@@ -347,7 +362,7 @@ export class TSGenerator implements CodeGenerator {
       return "";
     }
 
-    return "sia";
+    return sia;
   }
 
   private getDefaultValue(fieldType: FieldType): string {
