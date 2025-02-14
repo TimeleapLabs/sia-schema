@@ -52,7 +52,7 @@ export class TSGenerator implements CodeGenerator {
 
     if (imports.client) {
       importStatements.push(
-        "import { Client, Function } from '@timeleap/unchained-client';",
+        "import { Client, Function } from '@timeleap/client';",
       );
     }
 
