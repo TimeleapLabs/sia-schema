@@ -6,6 +6,7 @@ import { TSGenerator } from "@/generator/ts/index.js";
 
 import { ILexingError, IRecognitionException } from "chevrotain";
 import { CodeGeneratorConstructor } from "@/generator/common/types.js";
+import { PyGenerator } from "@/generator/python/index.js";
 
 type Options = {
   string: boolean;
@@ -17,6 +18,8 @@ const getGenerator = (outputExt: string): CodeGeneratorConstructor => {
   switch (outputExt) {
     case "ts":
       return TSGenerator;
+    case "py":
+      return PyGenerator;
     default:
       throw new Error(`Unsupported output extension: ${outputExt}`);
   }
