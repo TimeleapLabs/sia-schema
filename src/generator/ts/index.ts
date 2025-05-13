@@ -350,12 +350,26 @@ export class TSGenerator implements CodeGenerator {
     return `decode${pascalCase(field.type)}`;
   }
 
+  private getFixedLength(field: FieldDefinition): string {
+    if (field.length) {
+      return field.length.toString();
+    }
+
+    if (field.fromEnd) {
+      return `sia.offset - sia.length - ${field.fromEnd}`;
+    }
+
+    throw new Error(
+      `Field ${field.name} is of fixed length but has no length specified.`,
+    );
+  }
+
   private getDeserializeFunctionArgs(
     field: FieldDefinition,
     sia = "sia",
   ): string {
     if (field.type === "byteN") {
-      return `${field.length}`;
+      return this.getFixedLength(field);
     }
 
     if (FIELD_TYPES.includes(field.type as FieldType)) {
