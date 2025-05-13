@@ -45,7 +45,9 @@ export class PyGenerator implements CodeGenerator {
         pluginNotices.push(
           `# You must connect to this plugin manually via RPC. Please check the tutorial below:`,
         );
-        pluginNotices.push(`# https://timeleap.swiss/docs/rpc\n`);
+        pluginNotices.push(
+          `# https://timeleap.swiss/docs/products/sia/highlevel#rpc\n`,
+        );
       }
     }
 
@@ -80,15 +82,18 @@ export class PyGenerator implements CodeGenerator {
     for (const field of schema.fields) {
       const fn = this.getSerializeFunctionName(field);
       const valueExpr = `value.${field.name}`;
-      let call: string;
+      const isAscii = field.type == "string8" && field.encoding == "ascii";
 
+      const comment = isAscii ? "  # ascii" : "";
+
+      let call: string;
       if (fn.startsWith("sia.")) {
         call = `${fn}(${valueExpr})`;
       } else {
         call = `${fn}(sia, ${valueExpr})`;
       }
 
-      encodeParts.push(`    ${call}`);
+      encodeParts.push(`    ${call}${comment}`);
     }
     encodeParts.push("    return sia");
 
@@ -118,9 +123,25 @@ export class PyGenerator implements CodeGenerator {
   getSerializeFunctionName(field: FieldDefinition): string {
     if (field.type === "string") {
       if (field.encoding === "ascii") {
-        throw new Error(`Unknown encoding: ${field.encoding}`);
+        return "sia.add_string8";
       }
     }
+
+    if (field.type === "string") {
+      switch (field.encoding) {
+        case "utf8":
+          return "sia.add_string8";
+        case "utf16":
+          return "sia.add_string16";
+        case "utf32":
+          return "sia.add_string32";
+        case "utf64":
+          return "sia.add_string64";
+        default:
+          throw new Error(`Unknown string encoding: ${field.encoding}`);
+      }
+    }
+
     if (BYTE_TYPES.includes(field.type as ByteType)) {
       switch (field.type) {
         case "byteN":
@@ -164,7 +185,7 @@ export class PyGenerator implements CodeGenerator {
   getDeserializeFunctionName(field: FieldDefinition): string {
     if (field.type === "string") {
       if (field.encoding === "ascii") {
-        throw new Error(`Unknown encoding: ${field.encoding}`);
+        return "sia.read_string8";
       }
     }
 
