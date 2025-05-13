@@ -41,10 +41,22 @@ const WhiteSpace = createToken({
   pattern: /\s+/,
   group: Lexer.SKIPPED,
 });
+const LineComment = createToken({
+  name: "LineComment",
+  pattern: /\/\/.*?(\r?\n)/,
+  group: Lexer.SKIPPED,
+});
+const MultiLineComment = createToken({
+  name: "MultiLineComment",
+  pattern: /\/\*[\s\S]*?\*\//,
+  group: Lexer.SKIPPED,
+});
 
 // Token list
 export const SiaSchemaTokens = [
   WhiteSpace,
+  LineComment,
+  MultiLineComment,
   Plugin,
   Method,
   As,
