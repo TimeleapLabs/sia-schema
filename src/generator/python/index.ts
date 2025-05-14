@@ -128,32 +128,42 @@ export class PyGenerator implements CodeGenerator {
     }
 
     if (field.type === "string") {
-      switch (field.encoding) {
-        case "utf8":
-          return "sia.add_string8";
-        case "utf16":
-          return "sia.add_string16";
-        case "utf32":
-          return "sia.add_string32";
-        case "utf64":
-          return "sia.add_string64";
-        default:
-          throw new Error(`Unknown string encoding: ${field.encoding}`);
+      if (STRING_TYPES.includes(field.type as StringType)) {
+        switch (field.encoding) {
+          case "utf8":
+            return "sia.add_string8";
+          case "utf16":
+            return "sia.add_string16";
+          case "utf32":
+            return "sia.add_string32";
+          case "utf64":
+            return "sia.add_string64";
+          default:
+            throw new Error(`Unknown string encoding: ${field.encoding}`);
+        }
+      } else {
+        throw new Error(`Unsupported byte type: ${field.type}`);
       }
     }
 
-    if (BYTE_TYPES.includes(field.type as ByteType)) {
-      switch (field.type) {
-        case "byteN":
-          return "sia.add_byte_array_n";
-        case "byte8":
-          return "sia.add_byte_array8";
-        case "byte16":
-          return "sia.add_byte_array16";
-        case "byte32":
-          return "sia.add_byte_array32";
-        case "byte64":
-          return "sia.add_byte_array64";
+    if (field.type.startsWith("byte")) {
+      if (BYTE_TYPES.includes(field.type as ByteType)) {
+        switch (field.type) {
+          case "byteN":
+            return "sia.add_byte_array_n";
+          case "byte8":
+            return "sia.add_byte_array8";
+          case "byte16":
+            return "sia.add_byte_array16";
+          case "byte32":
+            return "sia.add_byte_array32";
+          case "byte64":
+            return "sia.add_byte_array64";
+          default:
+            throw new Error(`Unsupported byte type: ${field.type}`);
+        }
+      } else {
+        throw new Error(`Unsupported byte type: ${field.type}`);
       }
     }
 
@@ -190,32 +200,42 @@ export class PyGenerator implements CodeGenerator {
     }
 
     if (field.type === "string") {
-      switch (field.encoding) {
-        case "utf8":
-          return "sia.read_string8";
-        case "utf16":
-          return "sia.read_string16";
-        case "utf32":
-          return "sia.read_string32";
-        case "utf64":
-          return "sia.read_string64";
-        default:
-          throw new Error(`Unknown string encoding: ${field.encoding}`);
+      if (STRING_TYPES.includes(field.type as StringType)) {
+        switch (field.encoding) {
+          case "utf8":
+            return "sia.read_string8";
+          case "utf16":
+            return "sia.read_string16";
+          case "utf32":
+            return "sia.read_string32";
+          case "utf64":
+            return "sia.read_string64";
+          default:
+            throw new Error(`Unknown string encoding: ${field.encoding}`);
+        }
+      } else {
+        throw new Error(`Unsupported byte type: ${field.type}`);
       }
     }
 
-    if (BYTE_TYPES.includes(field.type as ByteType)) {
-      switch (field.type) {
-        case "byteN":
-          return "sia.read_byte_array_n";
-        case "byte8":
-          return "sia.read_byte_array8";
-        case "byte16":
-          return "sia.read_byte_array16";
-        case "byte32":
-          return "sia.read_byte_array32";
-        case "byte64":
-          return "sia.read_byte_array64";
+    if (field.type.startsWith("byte")) {
+      if (BYTE_TYPES.includes(field.type as ByteType)) {
+        switch (field.type) {
+          case "byteN":
+            return "sia.read_byte_array_n";
+          case "byte8":
+            return "sia.read_byte_array8";
+          case "byte16":
+            return "sia.read_byte_array16";
+          case "byte32":
+            return "sia.read_byte_array32";
+          case "byte64":
+            return "sia.read_byte_array64";
+          default:
+            throw new Error(`Unsupported byte type: ${field.type}`);
+        }
+      } else {
+        throw new Error(`Unsupported byte type: ${field.type}`);
       }
     }
 
@@ -234,8 +254,22 @@ export class PyGenerator implements CodeGenerator {
     return `decode_${snakeCase(field.type)}`;
   }
 
+  private getFixedLength(field: FieldDefinition): string {
+    if (field.length) {
+      return field.length.toString();
+    }
+
+    if (field.fromEnd) {
+      return `sia.offset - sia.length - ${field.fromEnd}`;
+    }
+
+    throw new Error(
+      `Field ${field.name} is of fixed length but has no length specified.`,
+    );
+  }
+
   getDeserializeFunctionArgs(field: FieldDefinition): string {
-    if (field.type === "byteN") return `${field.length}`;
+    if (field.type === "byteN") return this.getFixedLength(field);
     if (FIELD_TYPES.includes(field.type as FieldType)) return "";
     return "sia";
   }
