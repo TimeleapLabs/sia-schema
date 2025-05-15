@@ -44,8 +44,11 @@ export type BooleanType = (typeof BOOLEAN_TYPES)[number];
 export type FieldType = StringType | ByteType | NumberType | BooleanType;
 
 export interface CodeGenerator {
-  toCode: () => Promise<string>;
-  schemaToCode: (schema: SchemaDefinition) => string;
+  toCode(): Promise<string>;
+  schemaToCode(schema: SchemaDefinition): string;
+
+  // Optional: only implemented by C++ generator
+  toHeaderAndSource?(fileName?: string): Promise<{ hpp: string; cpp: string }>;
 }
 
 export type CodeGeneratorConstructor = new (
