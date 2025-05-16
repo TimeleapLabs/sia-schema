@@ -7,7 +7,10 @@ import { TSGenerator } from "@/generator/ts/index.js";
 import { ILexingError, IRecognitionException } from "chevrotain";
 import { CodeGeneratorConstructor } from "@/generator/common/types.js";
 
-type Options = {
+import path from "path";
+import { resolveExtension } from "@/utils/extension.js";
+
+export type Options = {
   string: boolean;
   output: string;
   extension?: string;
@@ -24,7 +27,7 @@ const getGenerator = (outputExt: string): CodeGeneratorConstructor => {
 
 const compileAction = async (file: string, options: Options) => {
   const src = readFileSync(file, "utf-8");
-  const ext = options.output?.split(".").pop() ?? options.extension ?? "";
+  const ext = await resolveExtension(options);
 
   try {
     const Generator = getGenerator(ext);
@@ -32,13 +35,18 @@ const compileAction = async (file: string, options: Options) => {
     const generator = new Generator(sir);
     const result = await generator.toCode();
 
+    let outputPath = options.output;
+    if (outputPath && path.extname(outputPath) === "") {
+      outputPath += `.${ext}`;
+    }
+
     if (options.string) {
       return console.log(result);
     }
 
-    if (options.output) {
-      writeFileSync(options.output, result);
-      console.log(`Output written to ${options.output}`);
+    if (outputPath) {
+      writeFileSync(outputPath, result);
+      console.log(`Output written to ${outputPath}`);
       return;
     }
 
