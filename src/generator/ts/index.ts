@@ -26,11 +26,14 @@ import { format } from "prettier";
 
 export class TSGenerator implements CodeGenerator {
   private schema: Definition[];
+  private knownSchemas: Set<string>;
 
   constructor(schema: Definition[]) {
     this.schema = schema;
+    this.knownSchemas = new Set(
+      this.schema.filter((s) => s.type === "schema").map((s) => s.name),
+    );
   }
-
   async toCode(): Promise<string> {
     const imports = { sia: true, client: false };
     const parts: string[] = [];
@@ -248,11 +251,7 @@ export class TSGenerator implements CodeGenerator {
       return "boolean";
     }
 
-    const knownSchemas = new Set(
-      this.schema.filter((s) => s.type === "schema").map((s) => s.name),
-    );
-
-    if (!knownSchemas.has(fieldType)) {
+    if (!this.knownSchemas.has(fieldType)) {
       throw new Error(
         `Unknown field type: '${fieldType}'. If this is a custom type, please declare a schema with that name.`,
       );
