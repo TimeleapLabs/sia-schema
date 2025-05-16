@@ -248,6 +248,16 @@ export class TSGenerator implements CodeGenerator {
       return "boolean";
     }
 
+    const knownSchemas = new Set(
+      this.schema.filter((s) => s.type === "schema").map((s) => s.name),
+    );
+
+    if (!knownSchemas.has(fieldType)) {
+      throw new Error(
+        `Unknown field type: '${fieldType}'. If this is a custom type, please declare a schema with that name.`,
+      );
+    }
+
     return fieldType;
   }
 
