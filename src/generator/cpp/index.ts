@@ -140,6 +140,17 @@ export class CPPGenerator implements CodeGenerator {
     if (field.type === "bool") return "bool";
     if (BYTE_TYPES.includes(field.type as ByteType))
       return "std::vector<uint8_t>";
+
+    const knownSchemas = new Set(
+      this.schema.filter((s) => s.type === "schema").map((s) => s.name),
+    );
+
+    if (!knownSchemas.has(field.type)) {
+      throw new Error(
+        `Unknown field type: '${field.type}'. If this is a custom type, please declare a schema with that name.`,
+      );
+    }
+
     return pascalCase(field.type);
   }
 
