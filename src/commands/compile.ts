@@ -3,14 +3,14 @@ import { compile } from "@/compiler/index.js";
 import { logError } from "@/utils/log.js";
 import { Command } from "commander";
 import { TSGenerator } from "@/generator/ts/index.js";
-
-import { ILexingError, IRecognitionException } from "chevrotain";
-import { CodeGeneratorConstructor } from "@/generator/common/types.js";
 import { PyGenerator } from "@/generator/python/index.js";
 import { CPPGenerator } from "@/generator/cpp/index.js";
-import { dirname, basename, extname, join } from "path";
+import { ILexingError, IRecognitionException } from "chevrotain";
+import { CodeGeneratorConstructor } from "@/generator/common/types.js";
+import { basename, extname, join } from "path";
+import { resolveExtension } from "@/utils/extension.js";
 
-type Options = {
+export type Options = {
   string: boolean;
   output: string;
   extension?: string;
@@ -31,7 +31,7 @@ const getGenerator = (outputExt: string): CodeGeneratorConstructor => {
 
 const compileAction = async (file: string, options: Options) => {
   const src = readFileSync(file, "utf-8");
-  const ext = options.output?.split(".").pop() ?? options.extension ?? "";
+  const ext = await resolveExtension(options);
 
   try {
     const Generator = getGenerator(ext);
@@ -39,44 +39,45 @@ const compileAction = async (file: string, options: Options) => {
     const generator = new Generator(sir);
 
     if (ext === "cpp" && generator instanceof CPPGenerator) {
-      const outputPath = options.output
+      const basePath = options.output
         ? options.output
-        : join(process.cwd(), basename(file, extname(file)) + ".cpp");
+        : join(process.cwd(), basename(file, extname(file)));
 
-      const baseFileName = basename(outputPath, extname(outputPath));
-
+      const baseFileName = basename(basePath, extname(basePath));
       const { hpp, cpp } = await generator.toHeaderAndSource(baseFileName);
 
       if (options.string) {
-        console.log("// --------- HEADER ---------\n" + hpp);
-        console.log("// --------- SOURCE ---------\n" + cpp);
-        return;
+        console.log("Header File:\n", hpp);
+        console.log("Source File:\n", cpp);
+      } else {
+        const headerPath = `${basePath}.hpp`;
+        const sourcePath = `${basePath}.cpp`;
+        writeFileSync(headerPath, hpp);
+        writeFileSync(sourcePath, cpp);
+        console.log(`Output written to ${headerPath} and ${sourcePath}`);
       }
 
-      if (options.output) {
-        const outDir = dirname(outputPath);
-        const baseFileName = basename(outputPath, extname(outputPath));
-
-        writeFileSync(join(outDir, `${baseFileName}.hpp`), hpp);
-        writeFileSync(join(outDir, `${baseFileName}.cpp`), cpp);
-
-        console.log(`Output written to ${outDir}`);
-        return;
-      }
-      return console.dir(hpp + "\n\n" + cpp, { depth: null });
-    } else {
-      const result = await generator.toCode();
-      if (options.string) {
-        console.log(result);
-        return;
-      }
-      if (options.output) {
-        writeFileSync(options.output, result);
-        console.log(`Output written to ${options.output}`);
-        return;
-      }
-      return console.dir(result, { depth: null });
+      return;
     }
+
+    const result = generator.toString();
+
+    let outputPath = options.output;
+    if (outputPath && extname(outputPath) === "") {
+      outputPath += `.${ext}`;
+    }
+
+    if (options.string) {
+      return console.log(result);
+    }
+
+    if (outputPath) {
+      writeFileSync(outputPath, result);
+      console.log(`Output written to ${outputPath}`);
+      return;
+    }
+
+    return console.dir(result, { depth: null });
   } catch (error) {
     logError(src, file, error as ILexingError | IRecognitionException);
     process.exitCode = 1;
