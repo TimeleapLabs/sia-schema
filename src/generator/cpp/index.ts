@@ -21,9 +21,13 @@ import { camelCase, pascalCase } from "change-case";
 
 export class CPPGenerator implements CodeGenerator {
   private schema: Definition[];
+  private knownSchemas: Set<string>;
 
   constructor(schema: Definition[]) {
     this.schema = schema;
+    this.knownSchemas = new Set(
+      this.schema.filter((s) => s.type === "schema").map((s) => s.name),
+    );
   }
 
   async toCode(): Promise<string> {
@@ -141,11 +145,7 @@ export class CPPGenerator implements CodeGenerator {
     if (BYTE_TYPES.includes(field.type as ByteType))
       return "std::vector<uint8_t>";
 
-    const knownSchemas = new Set(
-      this.schema.filter((s) => s.type === "schema").map((s) => s.name),
-    );
-
-    if (!knownSchemas.has(field.type)) {
+    if (!this.knownSchemas.has(field.type)) {
       throw new Error(
         `Unknown field type: '${field.type}'. If this is a custom type, please declare a schema with that name.`,
       );
