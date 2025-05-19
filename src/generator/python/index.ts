@@ -19,8 +19,6 @@ import type {
   SchemaDefinition,
 } from "@/compiler/visitor.js";
 
-import { snakeCase } from "change-case";
-
 export class PyGenerator implements CodeGenerator {
   private schema: Definition[];
   private knownSchemas: Set<string>;
@@ -34,14 +32,11 @@ export class PyGenerator implements CodeGenerator {
 
   async toCode(): Promise<string> {
     const parts: string[] = ["from sia import Sia\n"];
-
-    const decodeFunctions: string[] = [];
     const pluginNotices: string[] = [];
 
     for (const schema of this.schema) {
       if (schema.type === "schema") {
         parts.push(this.schemaToCode(schema));
-        decodeFunctions.push(this.decodeFunction(schema));
       } else if (schema.type === "plugin") {
         pluginNotices.push(
           `# Cannot generate plugin '${schema.name}' due to lack of RPC support in the Python Sia generator.`,
@@ -55,9 +50,7 @@ export class PyGenerator implements CodeGenerator {
       }
     }
 
-    parts.push(...decodeFunctions);
     parts.push(...pluginNotices);
-
     return parts.join("\n\n");
   }
 
@@ -78,34 +71,31 @@ export class PyGenerator implements CodeGenerator {
       parts.push(`        self.${field.name} = ${field.name}`);
     }
 
-    // external encode function
+    // encode method
     const encodeParts: string[] = [];
-    encodeParts.push(
-      `\ndef encode_${snakeCase(schema.name)}(sia: Sia, value: ${schema.name}) -> Sia:`,
-    );
+    encodeParts.push("");
+    encodeParts.push("    def encode(self, sia: Sia) -> Sia:");
     for (const field of schema.fields) {
       const fn = this.getSerializeFunctionName(field);
-      const valueExpr = `value.${field.name}`;
+      const valueExpr = `self.${field.name}`;
       const isAscii = field.type == "string8" && field.encoding == "ascii";
-
       const comment = isAscii ? "  # ascii" : "";
 
       let call: string;
       if (fn.startsWith("sia.")) {
         call = `${fn}(${valueExpr})`;
+      } else if (this.knownSchemas.has(field.type)) {
+        call = `${valueExpr}.encode(sia)`;
       } else {
         call = `${fn}(sia, ${valueExpr})`;
       }
 
-      encodeParts.push(`    ${call}${comment}`);
+      encodeParts.push(`        ${call}${comment}`);
     }
-    encodeParts.push("    return sia");
+    encodeParts.push("        return sia");
 
-    return parts.join("\n") + "\n" + encodeParts.join("\n");
-  }
-
-  decodeFunction(schema: SchemaDefinition): string {
-    const args = schema.fields
+    // decode method
+    const decodeArgs = schema.fields
       .map((f) => {
         const method = this.getDeserializeFunctionName(f);
         const call = `${method}(${this.getDeserializeFunctionArgs(f)})`;
@@ -113,7 +103,12 @@ export class PyGenerator implements CodeGenerator {
       })
       .join(", ");
 
-    return `\ndef decode_${snakeCase(schema.name)}(sia: Sia) -> ${schema.name}:\n    return ${schema.name}(${args})\n`;
+    encodeParts.push("");
+    encodeParts.push("    @classmethod");
+    encodeParts.push(`    def decode(cls, sia: Sia) -> "${schema.name}":`);
+    encodeParts.push(`        return cls(${decodeArgs})`);
+
+    return parts.join("\n") + "\n" + encodeParts.join("\n");
   }
 
   fieldTypeToPyType(fieldType: FieldType): string {
@@ -170,7 +165,7 @@ export class PyGenerator implements CodeGenerator {
       return `sia.add_${field.type}`;
     }
 
-    return `encode_${snakeCase(field.type)}`;
+    return `${field.type}.encode`;
   }
 
   getSerializeFunctionArgs(field: FieldDefinition): string {
@@ -207,7 +202,7 @@ export class PyGenerator implements CodeGenerator {
       return `sia.read_${field.type}`;
     }
 
-    return `decode_${snakeCase(field.type)}`;
+    return `${field.type}.decode`;
   }
 
   getDeserializeFunctionArgs(field: FieldDefinition): string {
