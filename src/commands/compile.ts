@@ -9,6 +9,7 @@ import { ILexingError, IRecognitionException } from "chevrotain";
 import { CodeGeneratorConstructor } from "@/generator/common/types.js";
 import { basename, extname, join } from "path";
 import { resolveExtension } from "@/utils/extension.js";
+import { GoGenerator } from "@/generator/go/index.js";
 
 export type Options = {
   string: boolean;
@@ -20,6 +21,8 @@ const getGenerator = (outputExt: string): CodeGeneratorConstructor => {
   switch (outputExt) {
     case "ts":
       return TSGenerator;
+    case "go":
+      return GoGenerator;
     case "py":
       return PyGenerator;
     case "cpp":
