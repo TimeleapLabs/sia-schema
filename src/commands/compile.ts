@@ -7,6 +7,8 @@ import { TSGenerator } from "@/generator/ts/index.js";
 import { ILexingError, IRecognitionException } from "chevrotain";
 import { CodeGeneratorConstructor } from "@/generator/common/types.js";
 import { PyGenerator } from "@/generator/python/index.js";
+import { CPPGenerator } from "@/generator/cpp/index.js";
+import { dirname, basename, extname, join } from "path";
 
 type Options = {
   string: boolean;
@@ -20,6 +22,8 @@ const getGenerator = (outputExt: string): CodeGeneratorConstructor => {
       return TSGenerator;
     case "py":
       return PyGenerator;
+    case "cpp":
+      return CPPGenerator;
     default:
       throw new Error(`Unsupported output extension: ${outputExt}`);
   }
@@ -33,19 +37,46 @@ const compileAction = async (file: string, options: Options) => {
     const Generator = getGenerator(ext);
     const sir = compile(src);
     const generator = new Generator(sir);
-    const result = await generator.toCode();
 
-    if (options.string) {
-      return console.log(result);
+    if (ext === "cpp" && generator instanceof CPPGenerator) {
+      const outputPath = options.output
+        ? options.output
+        : join(process.cwd(), basename(file, extname(file)) + ".cpp");
+
+      const baseFileName = basename(outputPath, extname(outputPath));
+
+      const { hpp, cpp } = await generator.toHeaderAndSource(baseFileName);
+
+      if (options.string) {
+        console.log("// --------- HEADER ---------\n" + hpp);
+        console.log("// --------- SOURCE ---------\n" + cpp);
+        return;
+      }
+
+      if (options.output) {
+        const outDir = dirname(outputPath);
+        const baseFileName = basename(outputPath, extname(outputPath));
+
+        writeFileSync(join(outDir, `${baseFileName}.hpp`), hpp);
+        writeFileSync(join(outDir, `${baseFileName}.cpp`), cpp);
+
+        console.log(`Output written to ${outDir}`);
+        return;
+      }
+      return console.dir(hpp + "\n\n" + cpp, { depth: null });
+    } else {
+      const result = await generator.toCode();
+      if (options.string) {
+        console.log(result);
+        return;
+      }
+      if (options.output) {
+        writeFileSync(options.output, result);
+        console.log(`Output written to ${options.output}`);
+        return;
+      }
+      return console.dir(result, { depth: null });
     }
-
-    if (options.output) {
-      writeFileSync(options.output, result);
-      console.log(`Output written to ${options.output}`);
-      return;
-    }
-
-    return console.dir(result, { depth: null });
   } catch (error) {
     logError(src, file, error as ILexingError | IRecognitionException);
     process.exitCode = 1;
