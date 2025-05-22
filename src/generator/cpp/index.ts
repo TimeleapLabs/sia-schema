@@ -47,10 +47,12 @@ export class CPPGenerator implements CodeGenerator {
     const hppParts: string[] = [
       `// ${baseName}.hpp`,
       "#pragma once",
-      "#include <sia/sia.hpp>",
-      "#include <vector>",
-      "#include <string>",
-      "#include <memory>",
+      [
+        "#include <sia/sia.hpp>",
+        "#include <vector>",
+        "#include <string>",
+        "#include <memory>",
+      ].join("\n"),
     ];
 
     const cppParts: string[] = [`#include "${baseName}.hpp"`];
@@ -83,12 +85,13 @@ export class CPPGenerator implements CodeGenerator {
       const cppType = this.fieldTypeToCppType(field);
       hppParts.push(`  ${cppType} ${field.name};`);
     }
-    hppParts.push(`};`);
+    hppParts.push(`}; \n`);
 
     if (includeSerialization) {
-      hppParts.push(`
-  std::shared_ptr<sia::Sia> encode${structName}(const ${structName}& ${varName});
-  ${structName} decode${structName}(std::shared_ptr<sia::Sia> sia);`);
+      hppParts.push(
+        `std::shared_ptr<sia::Sia> encode${structName}(const ${structName}& ${varName});`,
+        `${structName} decode${structName}(std::shared_ptr<sia::Sia> sia);`,
+      );
 
       const cppParts = [
         `std::shared_ptr<sia::Sia> encode${structName}(const ${structName}& ${varName}) {`,
@@ -102,10 +105,11 @@ export class CPPGenerator implements CodeGenerator {
         cppParts.push(`  ${code};`);
       }
       cppParts.push(`  return sia;`);
-      cppParts.push(`}`);
+      cppParts.push(`} \n`);
 
-      cppParts.push(`
-  ${structName} decode${structName}(std::shared_ptr<sia::Sia> sia) {`);
+      cppParts.push(
+        `${structName} decode${structName}(std::shared_ptr<sia::Sia> sia) {`,
+      );
       cppParts.push(`  ${structName} result;`);
       for (const field of schema.fields) {
         const code = this.getDeSerializeFunctionArgs(
