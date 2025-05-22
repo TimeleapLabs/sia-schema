@@ -2,13 +2,17 @@ import { Options } from "@/commands/compile.js";
 import { existsSync } from "fs";
 import path from "path";
 
-export const detectExtensionFromProjectFiles = (): string | null => {
-  const cwd = process.cwd();
-
-  if (existsSync(path.join(cwd, "go.sum"))) return "go";
-  if (existsSync(path.join(cwd, "pyproject.toml"))) return "py";
-  if (existsSync(path.join(cwd, "tsconfig.json"))) return "ts";
-  if (existsSync(path.join(cwd, "CMakeLists.txt"))) return "cpp";
+/**
+ * Tries to detect the language extension based on common project files
+ * in the given directory.
+ */
+export const detectExtensionFromProjectFiles = (
+  directory: string,
+): string | null => {
+  if (existsSync(path.join(directory, "go.sum"))) return "go";
+  if (existsSync(path.join(directory, "pyproject.toml"))) return "py";
+  if (existsSync(path.join(directory, "tsconfig.json"))) return "ts";
+  if (existsSync(path.join(directory, "CMakeLists.txt"))) return "cpp";
 
   return null;
 };
@@ -26,7 +30,11 @@ export const resolveExtension = async (options: Options): Promise<string> => {
     (options.output ? path.extname(options.output).slice(1) : "");
 
   if (!ext) {
-    const detected = detectExtensionFromProjectFiles();
+    const directory = options.output
+      ? path.dirname(path.resolve(options.output))
+      : process.cwd();
+
+    const detected = detectExtensionFromProjectFiles(directory);
     if (detected) {
       ext = detected;
       const languageName = extensionToLanguageMap[ext] ?? ext;
