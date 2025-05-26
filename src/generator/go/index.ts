@@ -26,13 +26,16 @@ export class GoGenerator implements CodeGenerator {
   constructor(schema: Definition[]) {
     this.schema = schema;
     this.knownSchemas = new Set(
-      this.schema.filter((s) => s.type === "schema").map((s) => s.name),
+      schema.filter((s) => s.type === "schema").map((s) => s.name),
     );
   }
 
   async toCode(): Promise<string> {
-    const parts: string[] = [
-      'package schema\n\nimport sia "github.com/TimeleapLabs/go-sia/v2/pkg"\n',
+    const parts = [
+      `package schema
+
+import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
+`,
     ];
     const pluginNotices: string[] = [];
 
@@ -42,11 +45,7 @@ export class GoGenerator implements CodeGenerator {
       } else if (schema.type === "plugin") {
         pluginNotices.push(
           `// Cannot generate plugin '${schema.name}' due to lack of RPC support in the Go Sia generator.`,
-        );
-        pluginNotices.push(
           `// You must connect to this plugin manually via RPC.`,
-        );
-        pluginNotices.push(
           `// https://timeleap.swiss/docs/products/sia/highlevel#rpc\n`,
         );
       }
@@ -57,24 +56,24 @@ export class GoGenerator implements CodeGenerator {
   }
 
   schemaToCode(schema: SchemaDefinition): string {
-    const parts: string[] = [];
+    const structFields = schema.fields
+      .map(
+        (field) =>
+          `    ${this.capitalize(field.name)} ${this.fieldTypeToGoType(field.type as FieldType)}`,
+      )
+      .join("\n");
 
-    parts.push(`type ${schema.name} struct {`);
-    for (const field of schema.fields) {
-      const goType = this.fieldTypeToGoType(field.type as FieldType);
-      parts.push(`    ${this.capitalize(field.name)} ${goType}`);
-    }
-    parts.push("}\n");
-
-    parts.push(this.encodeMethod(schema));
-    parts.push(this.decodeMethod(schema));
-
-    return parts.join("\n");
+    return [
+      `type ${schema.name} struct {`,
+      structFields,
+      `}\n`,
+      this.encodeMethod(schema),
+      this.decodeMethod(schema),
+    ].join("\n");
   }
 
   fieldTypeToGoType(fieldType: FieldType): string {
     if (STRING_TYPES.includes(fieldType as StringType)) return "string";
-
     if (NUMBER_TYPES.includes(fieldType as NumberType)) return fieldType;
     if (BYTE_TYPES.includes(fieldType as ByteType)) return "[]byte";
     if (fieldType === "bool") return "bool";
@@ -86,16 +85,19 @@ export class GoGenerator implements CodeGenerator {
   }
 
   encodeMethod(schema: SchemaDefinition): string {
-    const lines: string[] = [];
-    lines.push(`func (x *${schema.name}) Encode(sia sia.Sia) sia.Sia {`);
-    for (const field of schema.fields) {
+    const lines = schema.fields.map((field) => {
       const name = this.capitalize(field.name);
-      const fn = this.getSerializeFunctionName(field, `x.${name}`);
-      lines.push(`    ${fn}`);
-    }
-    lines.push("    return sia");
-    lines.push("}");
-    return lines.join("\n");
+      const ref = `x.${name}`;
+      const val = this.getRefWithDefault(field, ref);
+      return `    ${this.getSerializeFunctionName(field, val)}`;
+    });
+
+    return [
+      `func (x *${schema.name}) Encode(sia sia.Sia) sia.Sia {`,
+      ...lines,
+      `    return sia`,
+      `}`,
+    ].join("\n");
   }
 
   decodeMethod(schema: SchemaDefinition): string {
@@ -117,52 +119,51 @@ ${assignments.join("\n")}
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  getSerializeFunctionName(field: FieldDefinition, ref: string): string {
-    if (STRING_TYPES.includes(field.type as StringType)) {
-      const encoding = field.encoding ?? "utf8";
-      const suffix = this.STRING_ENCODING_MAP[encoding as string];
+  private getStringEncodingSuffix(encoding: string | undefined): string {
+    const suffix = this.STRING_ENCODING_MAP[encoding ?? "utf8"];
+    if (!suffix) throw new Error(`Unknown string encoding: ${encoding}`);
+    return suffix;
+  }
 
-      if (!suffix) {
-        throw new Error(`Unknown string encoding: ${encoding}`);
-      }
+  getSerializeFunctionName(field: FieldDefinition, ref: string): string {
+    const fieldType = field.type as FieldType;
+
+    if (STRING_TYPES.includes(fieldType as StringType)) {
+      const suffix = this.getStringEncodingSuffix(field.encoding as string);
       return `sia.Add${suffix}(${ref})`;
     }
-    if (this.BYTE_TYPE_MAP[field.type])
-      return `sia.Add${this.BYTE_TYPE_MAP[field.type]}(${ref})`;
-    if (field.type === "bool") return `sia.AddBool(${ref})`;
-    if (NUMBER_TYPES.includes(field.type as NumberType))
-      return `sia.Add${this.NUMBER_TYPE_MAP[field.type]}(${ref})`;
+    if (this.BYTE_TYPE_MAP[fieldType]) {
+      return `sia.Add${this.BYTE_TYPE_MAP[fieldType]}(${ref})`;
+    }
+    if (fieldType === "bool") return `sia.AddBool(${ref})`;
+    if (NUMBER_TYPES.includes(fieldType as NumberType)) {
+      return `sia.Add${this.NUMBER_TYPE_MAP[fieldType]}(${ref})`;
+    }
 
     // custom schema
     return `${ref}.Encode(sia)`;
   }
 
   getDeserializeFunctionName(field: FieldDefinition): string {
-    if (STRING_TYPES.includes(field.type as StringType)) {
-      const encoding = field.encoding ?? "utf8";
-      const suffix = this.STRING_ENCODING_MAP[encoding as string];
+    const fieldType = field.type as FieldType;
 
-      if (!suffix) {
-        throw new Error(`Unknown string encoding: ${encoding}`);
-      }
-
-      return `sia.Read${suffix}`;
+    if (STRING_TYPES.includes(fieldType as StringType)) {
+      return `sia.Read${this.getStringEncodingSuffix(field.encoding as string)}`;
     }
-    if (this.BYTE_TYPE_MAP[field.type])
-      return `sia.Read${this.BYTE_TYPE_MAP[field.type]}`;
+    if (this.BYTE_TYPE_MAP[fieldType]) {
+      return `sia.Read${this.BYTE_TYPE_MAP[fieldType]}`;
+    }
+    if (fieldType === "bool") return "sia.ReadBool";
+    if (NUMBER_TYPES.includes(fieldType as NumberType)) {
+      return `sia.Read${this.NUMBER_TYPE_MAP[fieldType]}`;
+    }
 
-    if (field.type === "bool") return "sia.ReadBool";
-
-    if (NUMBER_TYPES.includes(field.type as NumberType))
-      return `sia.Read${this.NUMBER_TYPE_MAP[field.type]}`;
-
-    return `Decode${field.type}`;
+    return `Decode${fieldType}`;
   }
 
   getDeserializeFunctionArgs(field: FieldDefinition): string {
     if (field.type === "byteN") {
-      const fixedLength = this.getFixedLength(field);
-      return `(${fixedLength})`;
+      return `(${this.getFixedLength(field)})`;
     }
     if (FIELD_TYPES.includes(field.type as FieldType)) return "()";
     return "(sia)";
@@ -178,6 +179,40 @@ ${assignments.join("\n")}
     throw new Error(
       `Field ${field.name} is of fixed length but has no length specified.`,
     );
+  }
+
+  private getRefWithDefault(field: FieldDefinition, ref: string): string {
+    if (!field.optional || field.defaultValue === undefined) return ref;
+
+    const fieldType = field.type;
+
+    // Only apply default value logic for strings
+    if (!STRING_TYPES.includes(fieldType as StringType)) return ref;
+
+    const defaultVal = this.getGoLiteralDefault(field);
+    const zero = this.zeroValueForType(fieldType);
+
+    if (defaultVal == zero) return ref;
+
+    return `(func() ${fieldType} {
+      if ${ref} == ${zero} {
+        return ${defaultVal}
+      }
+      return ${ref}
+    })()`;
+  }
+
+  private zeroValueForType(fieldType: string): string {
+    if (STRING_TYPES.includes(fieldType as StringType)) return `""`;
+    if (this.knownSchemas.has(fieldType)) return `nil`;
+    return `nil`;
+  }
+
+  private getGoLiteralDefault(field: FieldDefinition): string {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      return `"${field.defaultValue}"`;
+    }
+    return `""`;
   }
 
   STRING_ENCODING_MAP: Record<string, string> = {

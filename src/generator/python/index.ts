@@ -60,13 +60,32 @@ export class PyGenerator implements CodeGenerator {
     // class definition
     parts.push(`class ${schema.name}():`);
     parts.push("    def __init__(self,");
-    for (const field of schema.fields) {
-      const optional = field.optional ? " = None" : "";
+
+    // Separate required and optional fields
+    const requiredFields = schema.fields.filter((f) => !f.optional);
+    const optionalFields = schema.fields.filter((f) => f.optional);
+
+    // Add required fields first (no default)
+    for (const field of requiredFields) {
       parts.push(
-        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType)}${optional},`,
+        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType)},`,
       );
     }
+
+    for (const field of optionalFields) {
+      let defaultVal = "";
+      if (field.defaultValue !== undefined) {
+        defaultVal = ` = ${this.getPythonLiteralDefault(field)}`;
+      } else {
+        defaultVal = " = None";
+      }
+      parts.push(
+        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType)}${defaultVal},`,
+      );
+    }
+
     parts.push("    ):");
+
     for (const field of schema.fields) {
       parts.push(`        self.${field.name} = ${field.name}`);
     }
@@ -122,7 +141,14 @@ export class PyGenerator implements CodeGenerator {
         `Unknown field type: '${fieldType}'. If this is a custom type, please declare a schema with that name.`,
       );
     }
-    return fieldType;
+    return `"${fieldType}"`;
+  }
+
+  private getPythonLiteralDefault(field: FieldDefinition): string {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      return JSON.stringify(field.defaultValue);
+    }
+    return "None";
   }
 
   STRING_ENCODING_MAP: Record<string, string> = {

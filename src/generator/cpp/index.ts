@@ -83,8 +83,16 @@ export class CPPGenerator implements CodeGenerator {
     const hppParts = [`struct ${structName} {`];
     for (const field of schema.fields) {
       const cppType = this.fieldTypeToCppType(field);
-      hppParts.push(`  ${cppType} ${field.name};`);
+      let defaultValueCode = "";
+
+      if (field.defaultValue !== undefined) {
+        if (this.cppLiteralDefault(field))
+          defaultValueCode += ` = ${this.cppLiteralDefault(field)}`;
+      }
+
+      hppParts.push(`  ${cppType} ${field.name}${defaultValueCode};`);
     }
+
     hppParts.push(`}; \n`);
 
     if (includeSerialization) {
@@ -156,6 +164,23 @@ export class CPPGenerator implements CodeGenerator {
     }
 
     return pascalCase(field.type);
+  }
+
+  private cppLiteralDefault(field: FieldDefinition): string {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const escaped = String(field.defaultValue)
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"');
+      // console.log(escaped);
+
+      return `"${escaped}"`;
+    }
+
+    if (this.knownSchemas.has(field.type)) {
+      return "{}";
+    }
+
+    return "";
   }
 
   stringEncodingMap: Record<string, string> = {
