@@ -51,15 +51,19 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
       }
     }
 
+    for (const type of this.knownSchemas) {
+      parts.push(this.decodeHelper(type));
+    }
+
     parts.push(...pluginNotices);
-    return parts.join("\n\n");
+    return parts.join("\n");
   }
 
   schemaToCode(schema: SchemaDefinition): string {
     const structFields = schema.fields
       .map(
         (field) =>
-          `    ${this.capitalize(field.name)} ${this.fieldTypeToGoType(field.type as FieldType)}`,
+          `  ${this.capitalize(field.name)} ${this.fieldTypeToGoType(field.type as FieldType)} \`json:"${field.name}"\``,
       )
       .join("\n");
 
@@ -84,35 +88,50 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     return `*${fieldType}`;
   }
 
+  decodeHelper(typeName: string): string {
+    return [
+      `func Decode${typeName}(s sia.Sia) *${typeName} {`,
+      `  var x ${typeName}`,
+      `  return x.FromSiaBytes(s.Bytes())`,
+      `}\n`,
+    ].join("\n");
+  }
+
   encodeMethod(schema: SchemaDefinition): string {
     const lines = schema.fields.map((field) => {
       const name = this.capitalize(field.name);
-      const ref = `x.${name}`;
+      const ref = `p.${name}`;
       const val = this.getRefWithDefault(field, ref);
-      return `    ${this.getSerializeFunctionName(field, val)}`;
+      return this.getSerializeFunctionName(field, val);
     });
 
+    const formattedLines = lines.map((line, index) =>
+      index < lines.length - 1 ? `    ${line}.` : `    ${line}`,
+    );
+
     return [
-      `func (x *${schema.name}) Encode(sia sia.Sia) sia.Sia {`,
-      ...lines,
-      `    return sia`,
-      `}`,
+      `func (p *${schema.name}) Sia() sia.Sia {`,
+      `  return sia.New().`,
+      ...formattedLines,
+      `}\n`,
     ].join("\n");
   }
 
   decodeMethod(schema: SchemaDefinition): string {
-    const assignments: string[] = schema.fields.map((f) => {
-      const name = this.capitalize(f.name);
-      const call = this.getDeserializeFunctionName(f);
-      const args = this.getDeserializeFunctionArgs(f);
-      return `        ${name}: ${call}${args},`;
+    const lines = schema.fields.map((field) => {
+      const name = `p.${this.capitalize(field.name)}`;
+      const call = this.getDeserializeFunctionName(field);
+      const args = this.getDeserializeFunctionArgs(field);
+      return `  ${name} = ${call}${args}`;
     });
 
-    return `func Decode${schema.name}(sia sia.Sia) *${schema.name} {
-    return &${schema.name}{
-${assignments.join("\n")}
-    }
-}`;
+    return [
+      `func (p *${schema.name}) FromSiaBytes(bytes []byte) *${schema.name} {`,
+      `  s := sia.NewFromBytes(bytes)`,
+      ...lines,
+      `  return p`,
+      `}\n`,
+    ].join("\n");
   }
 
   capitalize(name: string): string {
@@ -130,32 +149,32 @@ ${assignments.join("\n")}
 
     if (STRING_TYPES.includes(fieldType as StringType)) {
       const suffix = this.getStringEncodingSuffix(field.encoding as string);
-      return `sia.Add${suffix}(${ref})`;
+      return `Add${suffix}(${ref})`;
     }
     if (this.BYTE_TYPE_MAP[fieldType]) {
-      return `sia.Add${this.BYTE_TYPE_MAP[fieldType]}(${ref})`;
+      return `Add${this.BYTE_TYPE_MAP[fieldType]}(${ref})`;
     }
-    if (fieldType === "bool") return `sia.AddBool(${ref})`;
+    if (fieldType === "bool") return `AddBool(${ref})`;
     if (NUMBER_TYPES.includes(fieldType as NumberType)) {
-      return `sia.Add${this.NUMBER_TYPE_MAP[fieldType]}(${ref})`;
+      return `Add${this.NUMBER_TYPE_MAP[fieldType]}(${ref})`;
     }
 
     // custom schema
-    return `${ref}.Encode(sia)`;
+    return `EmbedSia(${ref}.Sia().GetSia())`;
   }
 
   getDeserializeFunctionName(field: FieldDefinition): string {
     const fieldType = field.type as FieldType;
 
     if (STRING_TYPES.includes(fieldType as StringType)) {
-      return `sia.Read${this.getStringEncodingSuffix(field.encoding as string)}`;
+      return `s.Read${this.getStringEncodingSuffix(field.encoding as string)}`;
     }
     if (this.BYTE_TYPE_MAP[fieldType]) {
-      return `sia.Read${this.BYTE_TYPE_MAP[fieldType]}`;
+      return `s.Read${this.BYTE_TYPE_MAP[fieldType]}`;
     }
-    if (fieldType === "bool") return "sia.ReadBool";
+    if (fieldType === "bool") return "s.ReadBool";
     if (NUMBER_TYPES.includes(fieldType as NumberType)) {
-      return `sia.Read${this.NUMBER_TYPE_MAP[fieldType]}`;
+      return `s.Read${this.NUMBER_TYPE_MAP[fieldType]}`;
     }
 
     return `Decode${fieldType}`;
@@ -166,7 +185,7 @@ ${assignments.join("\n")}
       return `(${this.getFixedLength(field)})`;
     }
     if (FIELD_TYPES.includes(field.type as FieldType)) return "()";
-    return "(sia)";
+    return "(s)";
   }
 
   private getFixedLength(field: FieldDefinition): string {
