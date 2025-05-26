@@ -189,7 +189,8 @@ export class CPPGenerator implements CodeGenerator {
     accessExpr: string,
   ): string {
     if (STRING_TYPES.includes(field.type as StringType)) {
-      const funcSuffix = this.stringEncodingMap[field.encoding as string];
+      const funcSuffix =
+        this.stringEncodingMap[(field.encoding ?? "utf8") as string];
       return `sia->Add${funcSuffix}(${accessExpr})`;
     }
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
@@ -219,7 +220,7 @@ export class CPPGenerator implements CodeGenerator {
     const assign = (val: string) => `  ${targetExpr} = ${val};`;
     if (STRING_TYPES.includes(field.type as StringType)) {
       return assign(
-        `${siaVar}->Read${this.stringEncodingMap[field.encoding as string]}()`,
+        `${siaVar}->Read${this.stringEncodingMap[(field.encoding ?? "utf8") as string]}()`,
       );
     }
     if (NUMBER_TYPES.includes(field.type as NumberType)) {

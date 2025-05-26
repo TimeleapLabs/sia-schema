@@ -118,10 +118,13 @@ ${assignments.join("\n")}
   }
 
   getSerializeFunctionName(field: FieldDefinition, ref: string): string {
-    if (field.type.startsWith("string")) {
-      const suffix = this.STRING_ENCODING_MAP[field.encoding as string];
-      if (!suffix)
-        throw new Error(`Unknown string encoding: ${field.encoding}`);
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const encoding = field.encoding ?? "utf8";
+      const suffix = this.STRING_ENCODING_MAP[encoding as string];
+
+      if (!suffix) {
+        throw new Error(`Unknown string encoding: ${encoding}`);
+      }
       return `sia.Add${suffix}(${ref})`;
     }
     if (this.BYTE_TYPE_MAP[field.type])
@@ -135,10 +138,14 @@ ${assignments.join("\n")}
   }
 
   getDeserializeFunctionName(field: FieldDefinition): string {
-    if (field.type.startsWith("string")) {
-      const suffix = this.STRING_ENCODING_MAP[field.encoding as string];
-      if (!suffix)
-        throw new Error(`Unknown string encoding: ${field.encoding}`);
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const encoding = field.encoding ?? "utf8";
+      const suffix = this.STRING_ENCODING_MAP[encoding as string];
+
+      if (!suffix) {
+        throw new Error(`Unknown string encoding: ${encoding}`);
+      }
+
       return `sia.Read${suffix}`;
     }
     if (this.BYTE_TYPE_MAP[field.type])
