@@ -4,15 +4,24 @@ import path from "path";
 
 /**
  * Tries to detect the language extension based on common project files
- * in the given directory.
+ * in the given directory and up to two parent directories.
  */
 export const detectExtensionFromProjectFiles = (
   directory: string,
 ): string | null => {
-  if (existsSync(path.join(directory, "go.sum"))) return "go";
-  if (existsSync(path.join(directory, "pyproject.toml"))) return "py";
-  if (existsSync(path.join(directory, "tsconfig.json"))) return "ts";
-  if (existsSync(path.join(directory, "CMakeLists.txt"))) return "cpp";
+  const maxDepth = 3;
+  let currentDir = path.resolve(directory);
+
+  for (let i = 0; i < maxDepth; i++) {
+    if (existsSync(path.join(currentDir, "go.sum"))) return "go";
+    if (existsSync(path.join(currentDir, "pyproject.toml"))) return "py";
+    if (existsSync(path.join(currentDir, "tsconfig.json"))) return "ts";
+    if (existsSync(path.join(currentDir, "CMakeLists.txt"))) return "cpp";
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) break; // reached root
+    currentDir = parentDir;
+  }
 
   return null;
 };
