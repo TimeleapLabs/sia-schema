@@ -63,7 +63,7 @@ const compileAction = async (file: string, options: Options) => {
       return;
     }
 
-    const result = generator.toString();
+    const result = await generator.toCode();
 
     let outputPath = options.output;
     if (outputPath && extname(outputPath) === "") {
