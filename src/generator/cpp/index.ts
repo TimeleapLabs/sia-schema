@@ -83,8 +83,16 @@ export class CPPGenerator implements CodeGenerator {
     const hppParts = [`struct ${structName} {`];
     for (const field of schema.fields) {
       const cppType = this.fieldTypeToCppType(field);
-      hppParts.push(`  ${cppType} ${field.name};`);
+      let defaultValueCode = "";
+
+      if (field.defaultValue !== undefined) {
+        if (this.cppLiteralDefault(field))
+          defaultValueCode += ` = ${this.cppLiteralDefault(field)}`;
+      }
+
+      hppParts.push(`  ${cppType} ${field.name}${defaultValueCode};`);
     }
+
     hppParts.push(`}; \n`);
 
     if (includeSerialization) {
@@ -158,6 +166,23 @@ export class CPPGenerator implements CodeGenerator {
     return pascalCase(field.type);
   }
 
+  private cppLiteralDefault(field: FieldDefinition): string {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const escaped = String(field.defaultValue)
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"');
+      // console.log(escaped);
+
+      return `"${escaped}"`;
+    }
+
+    if (this.knownSchemas.has(field.type)) {
+      return "{}";
+    }
+
+    return "";
+  }
+
   stringEncodingMap: Record<string, string> = {
     ascii: "String8",
     utf8: "String8",
@@ -189,7 +214,8 @@ export class CPPGenerator implements CodeGenerator {
     accessExpr: string,
   ): string {
     if (STRING_TYPES.includes(field.type as StringType)) {
-      const funcSuffix = this.stringEncodingMap[field.encoding as string];
+      const funcSuffix =
+        this.stringEncodingMap[(field.encoding ?? "utf8") as string];
       return `sia->Add${funcSuffix}(${accessExpr})`;
     }
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
@@ -219,7 +245,7 @@ export class CPPGenerator implements CodeGenerator {
     const assign = (val: string) => `  ${targetExpr} = ${val};`;
     if (STRING_TYPES.includes(field.type as StringType)) {
       return assign(
-        `${siaVar}->Read${this.stringEncodingMap[field.encoding as string]}()`,
+        `${siaVar}->Read${this.stringEncodingMap[(field.encoding ?? "utf8") as string]}()`,
       );
     }
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
