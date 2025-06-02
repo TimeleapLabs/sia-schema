@@ -103,13 +103,13 @@ export class TSGenerator implements CodeGenerator {
     if (Array.isArray(method.fields)) {
       for (const field of method.fields) {
         const optional = field.optional ? "?" : "";
-        const tsType = this.fieldTypeToTsType(field.type as FieldType);
+        const tsType = this.fieldTypeToTsType(field as FieldDefinition);
         parts.push(`  ${field.name}${optional}: ${tsType},`);
       }
     } else {
       const field = method.fields;
       const optional = field.optional ? "?" : "";
-      const tsType = this.fieldTypeToTsType(field.type as FieldType);
+      const tsType = this.fieldTypeToTsType(field as FieldDefinition);
       parts.push(`  ${field.name}${optional}: ${tsType},`);
     }
 
@@ -118,28 +118,35 @@ export class TSGenerator implements CodeGenerator {
     if (Array.isArray(method.returns)) {
       parts.push("{");
       for (const field of method.returns) {
-        const tsType = this.fieldTypeToTsType(field.type as FieldType);
+        const tsType = this.fieldTypeToTsType(field as FieldDefinition);
         parts.push(`  ${field.name}: ${tsType},`);
       }
       parts.push("}");
     } else {
       const field = method.returns;
-      const tsType = this.fieldTypeToTsType(field.type as FieldType);
+      const tsType = this.fieldTypeToTsType(field as FieldDefinition);
       parts.push(`${tsType}`);
     }
 
     parts.push("> {");
-    if (Array.isArray(method.fields)) {
-      for (const field of method.fields) {
-        const name = this.getSerializeFunctionName(field);
-        const args = this.getSerializeFunctionArgs(field);
-        parts.push(`  ${name}(${args}${field.name});`);
+
+    const allFields = Array.isArray(method.fields)
+      ? method.fields
+      : [method.fields];
+
+    for (const field of allFields) {
+      if (field.isArray) {
+        parts.push(
+          `  sia.addArray8(${field.name}, (s, v) => ${this.getSerializeFunctionName(field)}(${this.getSerializeFunctionArgs(field)}v));`,
+        );
+      } else {
+        const value = field.optional
+          ? `${field.name} ?? ${this.getDefaultValue(field.type as FieldType)}`
+          : field.name;
+        parts.push(
+          `  ${this.getSerializeFunctionName(field)}(${this.getSerializeFunctionArgs(field)}${value});`,
+        );
       }
-    } else {
-      const field = method.fields;
-      const name = this.getSerializeFunctionName(field);
-      const args = this.getSerializeFunctionArgs(field);
-      parts.push(`  ${name}(${args}${field.name});`);
     }
 
     const timeout = method.timeout ?? "5000";
@@ -151,117 +158,118 @@ export class TSGenerator implements CodeGenerator {
     );
     parts.push("  const response = await method.populate(sia).invoke();");
 
-    if (Array.isArray(method.returns)) {
-      for (const field of method.returns) {
-        const name = this.getDeserializeFunctionName(field, "response");
-        const args = this.getDeserializeFunctionArgs(field, "response");
+    const allReturns = Array.isArray(method.returns)
+      ? method.returns
+      : [method.returns];
+
+    if (allReturns.length > 1) {
+      for (const field of allReturns) {
         const variable = camelCase(`resp_${field.name}`);
-        parts.push(`  const ${variable} = ${name}(${args});`);
+        parts.push(
+          `  const ${variable} = ${this.getDeserializeFunctionName(field, "response")}(${this.getDeserializeFunctionArgs(field, "response")});`,
+        );
       }
+
       parts.push("  return {");
-      for (const field of method.returns) {
+      for (const field of allReturns) {
         const variable = camelCase(`resp_${field.name}`);
         parts.push(`    ${field.name}: ${variable},`);
       }
       parts.push("  };");
     } else {
-      const field = method.returns;
-      const name = this.getDeserializeFunctionName(field);
-      const args = this.getDeserializeFunctionArgs(field);
-      parts.push(`  const response = ${name}(${args});`);
-      parts.push("  return response;");
+      const field = allReturns[0];
+      parts.push(
+        `  const value = ${this.getDeserializeFunctionName(field, "response")}(${this.getDeserializeFunctionArgs(field, "response")});`,
+      );
+      parts.push("  return value;");
     }
 
     parts.push("}\n");
-
     return parts.join("\n");
   }
 
   schemaToCode(schema: SchemaDefinition): string {
     const parts: string[] = [];
 
-    // Generate the interface
     parts.push(`export interface ${schema.name} {`);
-
     for (const field of schema.fields) {
       const optional = field.optional ? "?" : "";
-      const tsType = this.fieldTypeToTsType(field.type as FieldType);
+      const tsType = this.fieldTypeToTsType(field as FieldDefinition);
       parts.push(`  ${field.name}${optional}: ${tsType};`);
     }
-
     parts.push("}\n");
 
-    // Generate a helper function to serialize the schema
     const argName = camelCase(schema.name);
     parts.push(
       `export function encode${schema.name}(sia: Sia, ${argName}: ${schema.name}): Sia {`,
     );
-
     for (const field of schema.fields) {
-      const name = this.getSerializeFunctionName(field);
-      const args = this.getSerializeFunctionArgs(field);
-      const valueParts = [`${argName}.${field.name}`];
-
+      let value: string;
       if (field.optional) {
-        if (field.defaultValue) {
-          valueParts.push(`?? "${field.defaultValue}"`);
+        if (field.isArray) {
+          value = `${argName}.${field.name} ?? []`;
         } else {
-          valueParts.push(
-            "?? " + this.getDefaultValue(field.type as FieldType),
-          );
+          value = `${argName}.${field.name} ?? ${this.getDefaultValue(field.type as FieldType)}`;
         }
+      } else {
+        value = `${argName}.${field.name}`;
       }
 
-      const value = valueParts.join(" ");
-      parts.push(`  ${name}(${args}${value});`);
+      if (field.isArray) {
+        parts.push(
+          `  sia.addArray8(${value}, (s, v) => ${this.getSerializeFunctionName(field)}(${this.getSerializeFunctionArgs(field)}v));`,
+        );
+      } else {
+        parts.push(
+          `  ${this.getSerializeFunctionName(field)}(${this.getSerializeFunctionArgs(field)}${value});`,
+        );
+      }
     }
 
     parts.push("  return sia;");
     parts.push("}\n");
 
-    // Generate a helper function to deserialize the schema
     parts.push(
       `export function decode${schema.name}(sia: Sia): ${schema.name} {`,
     );
-    parts.push(`  return {`);
-
+    parts.push("  return {");
     for (const field of schema.fields) {
-      const name = this.getDeserializeFunctionName(field);
-      const args = this.getDeserializeFunctionArgs(field);
-
-      parts.push(`    ${field.name}: ${name}(${args}),`);
+      if (field.isArray) {
+        parts.push(
+          `    ${field.name}: sia.readArray8((s) => ${this.getDeserializeFunctionName(field)}(${this.getDeserializeFunctionArgs(field)})),`,
+        );
+      } else {
+        parts.push(
+          `    ${field.name}: ${this.getDeserializeFunctionName(field)}(${this.getDeserializeFunctionArgs(field)}),`,
+        );
+      }
     }
-
-    parts.push(`  }`);
-    parts.push(`}`);
+    parts.push("  };");
+    parts.push("}");
 
     return parts.join("\n");
   }
 
-  private fieldTypeToTsType(fieldType: FieldType): string {
-    if (STRING_TYPES.includes(fieldType as StringType)) {
-      return "string";
-    }
+  private fieldTypeToTsType(field: FieldDefinition): string {
+    let tsType: string;
 
-    if (NUMBER_TYPES.includes(fieldType as NumberType)) {
-      return "number";
-    }
-
-    if (BYTE_TYPES.includes(fieldType as ByteType)) {
-      return "Uint8Array | Buffer";
-    }
-
-    if (fieldType === "bool") {
-      return "boolean";
-    }
-
-    if (!this.knownSchemas.has(fieldType)) {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      tsType = "string";
+    } else if (NUMBER_TYPES.includes(field.type as NumberType)) {
+      tsType = "number";
+    } else if (BYTE_TYPES.includes(field.type as ByteType)) {
+      tsType = "Uint8Array | Buffer";
+    } else if (field.type === "bool") {
+      tsType = "boolean";
+    } else if (this.knownSchemas.has(field.type)) {
+      tsType = field.type;
+    } else {
       throw new Error(
-        `Unknown field type: '${fieldType}'. If this is a custom type, please declare a schema with that name.`,
+        `Unknown field type: '${field.type}'. If this is a custom type, please declare a schema with that name.`,
       );
     }
 
-    return fieldType;
+    return field.isArray ? `${tsType}[]` : tsType;
   }
 
   private getSerializeFunctionName(field: FieldDefinition): string {
