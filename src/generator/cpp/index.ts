@@ -28,6 +28,7 @@ export class CPPGenerator implements CodeGenerator {
     this.knownSchemas = new Set(
       this.schema.filter((s) => s.type === "schema").map((s) => s.name),
     );
+    this.schema = this.reorderSchemas();
   }
 
   async toCode(): Promise<string> {
@@ -51,6 +52,7 @@ export class CPPGenerator implements CodeGenerator {
         "#include <sia/sia.hpp>",
         "#include <vector>",
         "#include <string>",
+        "#include <sia/array.hpp>",
         "#include <memory>",
       ].join("\n"),
     ];
@@ -151,19 +153,20 @@ export class CPPGenerator implements CodeGenerator {
   }
 
   private fieldTypeToCppType(field: FieldDefinition): string {
-    if (STRING_TYPES.includes(field.type as StringType)) return "std::string";
-    if (NUMBER_TYPES.includes(field.type as NumberType)) return "uint64_t";
-    if (field.type === "bool") return "bool";
-    if (BYTE_TYPES.includes(field.type as ByteType))
-      return "std::vector<uint8_t>";
+    let baseType: string;
 
-    if (!this.knownSchemas.has(field.type)) {
-      throw new Error(
-        `Unknown field type: '${field.type}'. If this is a custom type, please declare a schema with that name.`,
-      );
-    }
+    if (STRING_TYPES.includes(field.type as StringType))
+      baseType = "std::string";
+    else if (NUMBER_TYPES.includes(field.type as NumberType))
+      baseType = "uint64_t";
+    else if (field.type === "bool") baseType = "bool";
+    else if (BYTE_TYPES.includes(field.type as ByteType))
+      baseType = "std::vector<uint8_t>";
+    else if (this.knownSchemas.has(field.type))
+      baseType = pascalCase(field.type);
+    else throw new Error(`Unknown field type: '${field.type}'`);
 
-    return pascalCase(field.type);
+    return field.isArray ? `std::vector<${baseType}>` : baseType;
   }
 
   private cppLiteralDefault(field: FieldDefinition): string {
@@ -213,9 +216,41 @@ export class CPPGenerator implements CodeGenerator {
     field: FieldDefinition,
     accessExpr: string,
   ): string {
+    if (field.isArray) {
+      let encoder: string;
+      let cppType: string;
+
+      if (STRING_TYPES.includes(field.type as StringType)) {
+        cppType = "std::string";
+
+        const suffix =
+          this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
+        encoder = `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
+      } else if (NUMBER_TYPES.includes(field.type as NumberType)) {
+        cppType = field.type + "_t";
+        const suffix = this.numbersEncodingMap[field.type];
+        encoder = `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
+      } else if (field.type === "bool") {
+        cppType = "bool";
+        encoder = `[&](auto self, const ${cppType}& v) { self->AddBool(v); }`;
+      } else if (BYTE_TYPES.includes(field.type as ByteType)) {
+        const suffix = this.byteArrayEncodingMap[field.type];
+        cppType = "std::vector<uint8_t>";
+        encoder = `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
+      } else if (this.knownSchemas.has(field.type)) {
+        cppType = pascalCase(field.type);
+        const encoderName = `encode${cppType}`;
+        encoder = `[&](auto self, const ${cppType}& v) { self->EmbedSia(${encoderName}(v)); }`;
+      } else {
+        throw new Error(`Unsupported array element type: '${field.type}'`);
+      }
+
+      return `sia::AddArray8<${cppType}>(sia, ${accessExpr}, ${encoder})`;
+    }
+
     if (STRING_TYPES.includes(field.type as StringType)) {
       const funcSuffix =
-        this.stringEncodingMap[(field.encoding ?? "utf8") as string];
+        this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
       return `sia->Add${funcSuffix}(${accessExpr})`;
     }
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
@@ -225,15 +260,14 @@ export class CPPGenerator implements CodeGenerator {
     if (field.type === "bool") {
       return `sia->AddBool(${accessExpr})`;
     }
-
     if (field.type === "byteN") {
       return `sia->AddByteArrayN(${accessExpr})`;
     }
-
     if (BYTE_TYPES.includes(field.type as ByteType)) {
       const funcSuffix = this.byteArrayEncodingMap[field.type];
       return `sia->Add${funcSuffix}(${accessExpr})`;
     }
+
     return `auto embedded = encode${pascalCase(field.type)}(${accessExpr});\n  sia->EmbedSia(embedded)`;
   }
 
@@ -243,9 +277,41 @@ export class CPPGenerator implements CodeGenerator {
     targetExpr: string,
   ): string {
     const assign = (val: string) => `  ${targetExpr} = ${val};`;
+
+    if (field.isArray) {
+      let decoder: string;
+      let cppType: string;
+
+      if (STRING_TYPES.includes(field.type as StringType)) {
+        cppType = "std::string";
+        const suffix =
+          this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
+        decoder = `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
+      } else if (NUMBER_TYPES.includes(field.type as NumberType)) {
+        cppType = field.type + "_t";
+        const suffix = this.numbersEncodingMap[field.type];
+        decoder = `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
+      } else if (field.type === "bool") {
+        cppType = "bool";
+        decoder = `[&](auto self) -> ${cppType} { return self->ReadBool(); }`;
+      } else if (BYTE_TYPES.includes(field.type as ByteType)) {
+        cppType = "std::vector<uint8_t>";
+        const suffix = this.byteArrayEncodingMap[field.type];
+        decoder = `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
+      } else if (this.knownSchemas.has(field.type)) {
+        cppType = pascalCase(field.type);
+        const decoderName = `decode${cppType}`;
+        decoder = `[&](auto self) -> ${cppType} { return ${decoderName}(self); }`;
+      } else {
+        throw new Error(`Unsupported array element type: '${field.type}'`);
+      }
+
+      return assign(`sia::ReadArray8<${cppType}>(${siaVar}, ${decoder})`);
+    }
+
     if (STRING_TYPES.includes(field.type as StringType)) {
       return assign(
-        `${siaVar}->Read${this.stringEncodingMap[(field.encoding ?? "utf8") as string]}()`,
+        `${siaVar}->Read${this.stringEncodingMap[(field.encoding as string) ?? "utf8"]}()`,
       );
     }
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
@@ -257,12 +323,53 @@ export class CPPGenerator implements CodeGenerator {
     if (field.type === "byteN") {
       return assign(`${siaVar}->ReadByteArrayN(${field.length})`);
     }
-
     if (BYTE_TYPES.includes(field.type as ByteType)) {
       return assign(
         `${siaVar}->Read${this.byteArrayEncodingMap[field.type]}()`,
       );
     }
+
     return assign(`decode${pascalCase(field.type)}(${siaVar})`);
+  }
+
+  // reorders an array of schema definitions so that any schema's dependencies come before the schema itself. (cpp only)
+  private reorderSchemas(): Definition[] {
+    const schemaMap = new Map<string, SchemaDefinition>();
+    const dependencies = new Map<string, Set<string>>();
+
+    for (const def of this.schema) {
+      if (def.type === "schema") {
+        schemaMap.set(def.name, def);
+        const deps = new Set<string>();
+        for (const field of def.fields) {
+          if (this.knownSchemas.has(field.type)) {
+            deps.add(field.type);
+          }
+        }
+        dependencies.set(def.name, deps);
+      }
+    }
+
+    const visited = new Set<string>();
+    const sorted: SchemaDefinition[] = [];
+
+    function visit(name: string) {
+      if (visited.has(name)) return;
+      visited.add(name);
+
+      for (const dep of dependencies.get(name) ?? []) {
+        visit(dep);
+      }
+
+      const schema = schemaMap.get(name);
+      if (schema) sorted.push(schema);
+    }
+
+    // Visit all schemas
+    for (const name of schemaMap.keys()) {
+      visit(name);
+    }
+
+    return sorted;
   }
 }
