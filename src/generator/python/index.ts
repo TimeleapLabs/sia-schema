@@ -31,7 +31,7 @@ export class PyGenerator implements CodeGenerator {
   }
 
   async toCode(): Promise<string> {
-    const parts: string[] = ["from sia import Sia\n"];
+    const parts: string[] = ["from sia import Sia"];
     const pluginNotices: string[] = [];
 
     for (const schema of this.schema) {
@@ -57,30 +57,30 @@ export class PyGenerator implements CodeGenerator {
   schemaToCode(schema: SchemaDefinition): string {
     const parts: string[] = [];
 
-    // class definition
+    const hasArray = schema.fields.some((f) => f.isArray);
+    if (hasArray) {
+      parts.push("from typing import List\n");
+    }
+
     parts.push(`class ${schema.name}():`);
     parts.push("    def __init__(self,");
 
-    // Separate required and optional fields
     const requiredFields = schema.fields.filter((f) => !f.optional);
     const optionalFields = schema.fields.filter((f) => f.optional);
 
-    // Add required fields first (no default)
     for (const field of requiredFields) {
       parts.push(
-        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType)},`,
+        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType, field.isArray)},`,
       );
     }
 
     for (const field of optionalFields) {
-      let defaultVal = "";
-      if (field.defaultValue !== undefined) {
-        defaultVal = ` = ${this.getPythonLiteralDefault(field)}`;
-      } else {
-        defaultVal = " = None";
-      }
+      const defaultVal =
+        field.defaultValue !== undefined
+          ? ` = ${this.getPythonLiteralDefault(field)}`
+          : " = None";
       parts.push(
-        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType)}${defaultVal},`,
+        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType, field.isArray)}${defaultVal},`,
       );
     }
 
@@ -90,58 +90,104 @@ export class PyGenerator implements CodeGenerator {
       parts.push(`        self.${field.name} = ${field.name}`);
     }
 
-    // encode method
-    const encodeParts: string[] = [];
-    encodeParts.push("");
-    encodeParts.push("    def encode(self, sia: Sia) -> Sia:");
-    for (const field of schema.fields) {
-      const fn = this.getSerializeFunctionName(field);
-      const valueExpr = `self.${field.name}`;
-      const isAscii = field.type == "string8" && field.encoding == "ascii";
-      const comment = isAscii ? "  # ascii" : "";
-
-      let call: string;
-      if (fn.startsWith("sia.")) {
-        call = `${fn}(${valueExpr})`;
-      } else if (this.knownSchemas.has(field.type)) {
-        call = `${valueExpr}.encode(sia)`;
-      } else {
-        call = `${fn}(sia, ${valueExpr})`;
-      }
-
-      encodeParts.push(`        ${call}${comment}`);
-    }
-    encodeParts.push("        return sia");
-
-    // decode method
-    const decodeArgs = schema.fields
-      .map((f) => {
-        const method = this.getDeserializeFunctionName(f);
-        const call = `${method}(${this.getDeserializeFunctionArgs(f)})`;
-        return `${f.name}=${call}`;
-      })
-      .join(", ");
-
-    encodeParts.push("");
-    encodeParts.push("    @classmethod");
-    encodeParts.push(`    def decode(cls, sia: Sia) -> "${schema.name}":`);
-    encodeParts.push(`        return cls(${decodeArgs})`);
-
-    return parts.join("\n") + "\n" + encodeParts.join("\n");
+    return [
+      parts.join("\n"),
+      this.encodeMethod(schema),
+      this.decodeMethod(schema),
+    ].join("\n");
   }
 
-  fieldTypeToPyType(fieldType: FieldType): string {
-    if (STRING_TYPES.includes(fieldType as StringType)) return "str";
-    if (NUMBER_TYPES.includes(fieldType as NumberType)) return "int";
-    if (BYTE_TYPES.includes(fieldType as ByteType)) return "bytes";
-    if (fieldType === "bool") return "bool";
+  private encodeMethod(schema: SchemaDefinition): string {
+    const lines: string[] = [];
+    lines.push("");
+    lines.push("    def encode(self, sia: Sia) -> Sia:");
 
-    if (!this.knownSchemas.has(fieldType)) {
+    for (const field of schema.fields) {
+      const valueExpr = `self.${field.name}`;
+
+      if (field.isArray) {
+        const serializeElemFn = this.getSerializeFunctionName(field);
+        const serializeElemArgs = this.getSerializeFunctionArgs(field);
+        let lambda: string;
+
+        if (serializeElemFn.startsWith("sia.")) {
+          const method = serializeElemFn.slice(4);
+          lambda = `lambda sia, v: sia.${method}(${serializeElemArgs}v)`;
+        } else if (this.knownSchemas.has(field.type)) {
+          lambda = `lambda sia, v: v.encode(sia)`;
+        } else {
+          lambda = `lambda sia, v: ${serializeElemFn}(sia, v)`;
+        }
+
+        lines.push(`        sia.add_array8(${valueExpr}, ${lambda})`);
+      } else {
+        const fn = this.getSerializeFunctionName(field);
+        const isAscii = field.type == "string8" && field.encoding == "ascii";
+        const comment = isAscii ? "  # ascii" : "";
+
+        if (fn.startsWith("sia.")) {
+          lines.push(`        ${fn}(${valueExpr})${comment}`);
+        } else if (this.knownSchemas.has(field.type)) {
+          lines.push(`        ${valueExpr}.encode(sia)`);
+        } else {
+          lines.push(`        ${fn}(sia, ${valueExpr})`);
+        }
+      }
+    }
+
+    lines.push("        return sia");
+    return lines.join("\n");
+  }
+
+  private decodeMethod(schema: SchemaDefinition): string {
+    const lines: string[] = [];
+    lines.push("");
+    lines.push("    @classmethod");
+    lines.push(`    def decode(cls, sia: Sia) -> "${schema.name}":`);
+    lines.push("        return cls(");
+
+    for (const field of schema.fields) {
+      if (field.isArray) {
+        const deserializeElemFn = this.getDeserializeFunctionName(field);
+        let lambda: string;
+
+        if (deserializeElemFn.startsWith("sia.")) {
+          const method = deserializeElemFn.slice(4);
+          lambda = `lambda sia: sia.${method}()`;
+        } else if (this.knownSchemas.has(field.type)) {
+          lambda = `lambda sia: ${field.type}.decode(sia)`;
+        } else {
+          lambda = `lambda sia: ${deserializeElemFn}(sia)`;
+        }
+
+        lines.push(`            ${field.name}=sia.read_array8(${lambda}),`);
+      } else {
+        const fn = this.getDeserializeFunctionName(field);
+        const args = this.getDeserializeFunctionArgs(field);
+        lines.push(`            ${field.name}=${fn}(${args}),`);
+      }
+    }
+
+    lines.push("        )");
+    return lines.join("\n");
+  }
+
+  fieldTypeToPyType(fieldType: FieldType, isArray: boolean = false): string {
+    let baseType: string;
+
+    if (STRING_TYPES.includes(fieldType as StringType)) baseType = "str";
+    else if (NUMBER_TYPES.includes(fieldType as NumberType)) baseType = "int";
+    else if (BYTE_TYPES.includes(fieldType as ByteType)) baseType = "bytes";
+    else if (fieldType === "bool") baseType = "bool";
+    else if (!this.knownSchemas.has(fieldType)) {
       throw new Error(
         `Unknown field type: '${fieldType}'. If this is a custom type, please declare a schema with that name.`,
       );
+    } else {
+      baseType = `"${fieldType}"`;
     }
-    return `"${fieldType}"`;
+
+    return isArray ? `List[${baseType}]` : baseType;
   }
 
   private getPythonLiteralDefault(field: FieldDefinition): string {
