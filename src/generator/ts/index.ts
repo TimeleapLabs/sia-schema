@@ -75,13 +75,14 @@ export class TSGenerator implements CodeGenerator {
     parts.push("}\n");
 
     parts.push(
-      "  private getMethod(method: string, timeout: number): Function {",
+      "  private getMethod(method: string, timeout: number, fee: { currency: string, amount: number }): Function {",
     );
     parts.push("    if (!this.methods.has(method)) {");
     parts.push("      this.methods.set(method, this.client.method({");
     parts.push("        plugin: this.pluginName,");
     parts.push("        method,");
     parts.push("        timeout,");
+    parts.push("        fee,");
     parts.push("      }));");
     parts.push("    }");
     parts.push("    return this.methods.get(method)!;");
@@ -142,8 +143,11 @@ export class TSGenerator implements CodeGenerator {
     }
 
     const timeout = method.timeout ?? "5000";
+    const fee = method.fee ?? "0";
+    const currency = method.currency ?? "TLP";
+
     parts.push(
-      `  const method = this.getMethod("${method.name}", ${timeout});`,
+      `  const method = this.getMethod("${method.name}", ${timeout}, { currency: "${currency}", amount: ${fee} });`,
     );
     parts.push("  const response = await method.populate(sia).invoke();");
 
