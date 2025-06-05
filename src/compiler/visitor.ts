@@ -46,6 +46,8 @@ export interface MethodDefinition {
   fields: FieldDefinition | FieldDefinition[];
   returns: FieldDefinition | FieldDefinition[];
   timeout?: string;
+  fee?: number;
+  currency?: string;
 }
 
 const SiaSchemaBaseVisitor =
@@ -143,15 +145,21 @@ export class SiaSchemaVisitor extends SiaSchemaBaseVisitor {
 
   typeOptions(ctx: TypeOptionsCstChildren): Record<string, unknown> {
     const options: Record<string, unknown> = {};
+    const values = [
+      ...(ctx.NumberLiteral ?? []),
+      ...(ctx.StringLiteral ?? []),
+    ].sort((a, b) => a.startOffset - b.startOffset);
 
     for (let i = 0; i < (ctx.Identifier?.length ?? 0); i++) {
       const key = ctx.Identifier![i].image;
-      const value = ctx.NumberLiteral?.[i]
-        ? Number(ctx.NumberLiteral[i].image)
-        : ctx.StringLiteral?.[i]
-          ? ctx.StringLiteral[i].image.slice(1, -1)
-          : null;
-      options[key] = value;
+      const valueToken = values[i];
+      if (valueToken.tokenType.name === "NumberLiteral") {
+        options[key] = Number(valueToken.image);
+      } else if (valueToken.tokenType.name === "StringLiteral") {
+        options[key] = valueToken.image.slice(1, -1);
+      } else {
+        options[key] = null; // Handle cases where no value is provided
+      }
     }
 
     return options;
