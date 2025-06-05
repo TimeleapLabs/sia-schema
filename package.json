@@ -1,6 +1,6 @@
 {
   "name": "@timeleap/sia-schema",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "packageManager": "yarn@4.5.2",
   "dependencies": {
     "change-case": "^5.4.4",
