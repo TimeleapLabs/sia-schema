@@ -147,7 +147,7 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     }
 
     code.push(`  return s`);
-    code.push(`}`);
+    code.push(`}\n`);
 
     return code.join("\n");
   }
@@ -201,7 +201,7 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     }
 
     lines.push(`  return p`);
-    lines.push(`}`);
+    lines.push(`}\n`);
 
     return lines.join("\n");
   }
@@ -211,10 +211,18 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
   }
 
   elementGoType(fieldType: FieldType): string {
-    if (STRING_TYPES.includes(fieldType as StringType)) return "string";
-    if (NUMBER_TYPES.includes(fieldType as NumberType)) return fieldType;
-    if (BYTE_TYPES.includes(fieldType as ByteType)) return "byte";
-    if (fieldType === "bool") return "bool";
+    if (STRING_TYPES.includes(fieldType as StringType)) {
+      return "string";
+    }
+    if (NUMBER_TYPES.includes(fieldType as NumberType)) {
+      return fieldType;
+    }
+    if (BYTE_TYPES.includes(fieldType as ByteType)) {
+      return "byte";
+    }
+    if (fieldType === "bool") {
+      return "bool";
+    }
     if (!this.knownSchemas.has(fieldType)) {
       throw new Error(`Unknown field type: '${fieldType}'`);
     }
@@ -236,7 +244,7 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
         { type: field.type } as FieldDefinition,
         "item",
       );
-      const arrayFunc = "AddArray8"; // You can extend to choose array size (8/16/32/64) if needed
+      const arrayFunc = "AddArray8";
 
       return `${arrayFunc}(${ref}, func(s *sia.ArraySia[${itemType}], item ${itemType}) {
         s.${serializeFunc}
@@ -274,7 +282,7 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     }
 
     if (this.knownSchemas.has(fieldType)) {
-      return `${fieldType.toLowerCase()} := ${fieldType}{}\n  `;
+      return `${fieldType.toLowerCase()} := ${fieldType}{}\n`;
     }
 
     return `Decode${fieldType}`;
@@ -314,9 +322,9 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     if (defaultVal == zero) return ref;
 
     return `(func() ${fieldType} {
-      if ${ref} == ${zero} {
-        return ${defaultVal}
-      }
+    if ${ref} == ${zero} {
+      return ${defaultVal}
+    }
       return ${ref}
     })()`;
   }
