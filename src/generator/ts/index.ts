@@ -145,7 +145,7 @@ export class TSGenerator implements CodeGenerator {
         const funcName = this.getSerializeFunctionName(field);
         const funcArgs = this.getSerializeFunctionArgs(field);
         const value = field.optional
-          ? `${field.name} ?? ${this.getDefaultValue(field.type as FieldType)}`
+          ? `${field.name} ?? ${this.getTSLiteralDefault(field as FieldDefinition)}`
           : field.name;
         parts.push(`  ${funcName}(${funcArgs}${value});`);
       }
@@ -201,18 +201,26 @@ export class TSGenerator implements CodeGenerator {
     }
     parts.push("}\n");
 
+    return (
+      parts.join("\n") +
+      "\n" +
+      this.encodeMethod(schema) +
+      "\n" +
+      this.decodeMethod(schema)
+    );
+  }
+
+  private encodeMethod(schema: SchemaDefinition): string {
+    const parts: string[] = [];
     const argName = camelCase(schema.name);
+
     parts.push(
       `export function encode${schema.name}(sia: Sia, ${argName}: ${schema.name}): Sia {`,
     );
     for (const field of schema.fields) {
       let value: string;
       if (field.optional) {
-        if (field.isArray) {
-          value = `${argName}.${field.name} ?? []`;
-        } else {
-          value = `${argName}.${field.name} ?? ${this.getDefaultValue(field.type as FieldType)}`;
-        }
+        value = `${argName}.${field.name} ?? ${this.getTSLiteralDefault(field as FieldDefinition)}`;
       } else {
         value = `${argName}.${field.name}`;
       }
@@ -232,6 +240,11 @@ export class TSGenerator implements CodeGenerator {
 
     parts.push("  return sia;");
     parts.push("}\n");
+    return parts.join("\n");
+  }
+
+  private decodeMethod(schema: SchemaDefinition): string {
+    const parts: string[] = [];
 
     parts.push(
       `export function decode${schema.name}(sia: Sia): ${schema.name} {`,
@@ -380,20 +393,6 @@ export class TSGenerator implements CodeGenerator {
     return `decode${pascalCase(field.type)}`;
   }
 
-  private getFixedLength(field: FieldDefinition): string {
-    if (field.length) {
-      return field.length.toString();
-    }
-
-    if (field.fromEnd) {
-      return `sia.offset - sia.length - ${field.fromEnd}`;
-    }
-
-    throw new Error(
-      `Field ${field.name} is of fixed length but has no length specified.`,
-    );
-  }
-
   private getDeserializeFunctionArgs(
     field: FieldDefinition,
     sia = "sia",
@@ -409,20 +408,37 @@ export class TSGenerator implements CodeGenerator {
     return sia;
   }
 
-  private getDefaultValue(fieldType: FieldType): string {
-    if (STRING_TYPES.includes(fieldType as StringType)) {
+  private getFixedLength(field: FieldDefinition): string {
+    if (field.length) {
+      return field.length.toString();
+    }
+
+    if (field.fromEnd) {
+      return `sia.offset - sia.length - ${field.fromEnd}`;
+    }
+
+    throw new Error(
+      `Field ${field.name} is of fixed length but has no length specified.`,
+    );
+  }
+
+  private getTSLiteralDefault(field: FieldDefinition): string {
+    if (field.isArray) {
+      return "[]";
+    }
+    if (STRING_TYPES.includes(field.type as StringType)) {
       return '""';
     }
 
-    if (NUMBER_TYPES.includes(fieldType as NumberType)) {
+    if (NUMBER_TYPES.includes(field.type as NumberType)) {
       return "0";
     }
 
-    if (BYTE_TYPES.includes(fieldType as ByteType)) {
+    if (BYTE_TYPES.includes(field.type as ByteType)) {
       return "new Uint8Array(0)";
     }
 
-    if (fieldType === "bool") {
+    if (field.type === "bool") {
       return "false";
     }
 

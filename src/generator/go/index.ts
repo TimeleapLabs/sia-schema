@@ -16,6 +16,8 @@ import type {
 import type {
   Definition,
   FieldDefinition,
+  MethodDefinition,
+  PluginDefinition,
   SchemaDefinition,
 } from "@/compiler/visitor.js";
 
@@ -33,21 +35,16 @@ export class GoGenerator implements CodeGenerator {
   async toCode(): Promise<string> {
     const parts = [
       `package schema
-
-import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
-`,
+  
+  import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
+  `,
     ];
-    const pluginNotices: string[] = [];
 
     for (const schema of this.schema) {
       if (schema.type === "schema") {
         parts.push(this.schemaToCode(schema));
       } else if (schema.type === "plugin") {
-        pluginNotices.push(
-          `// Cannot generate plugin '${schema.name}' due to lack of RPC support in the Go Sia generator.`,
-          `// You must connect to this plugin manually via RPC.`,
-          `// https://timeleap.swiss/docs/products/sia/highlevel#rpc\n`,
-        );
+        parts.push(this.pluginToCode(schema));
       }
     }
 
@@ -55,15 +52,27 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
       parts.push(this.decodeHelper(type));
     }
 
-    parts.push(...pluginNotices);
     return parts.join("\n");
+  }
+
+  pluginToCode(schema: PluginDefinition): string {
+    return [
+      `// Cannot generate plugin '${schema.name}' due to lack of RPC support in the Go Sia generator.`,
+      `// You must connect to this plugin manually via RPC.`,
+      `// https://timeleap.swiss/docs/products/sia/highlevel#rpc\n`,
+    ].join("\n");
+  }
+
+  methodToCode(method: MethodDefinition): string {
+    // Not implemented yet
+    return `// method ${method} not implemented`;
   }
 
   schemaToCode(schema: SchemaDefinition): string {
     const structFields = schema.fields
       .map(
         (field) =>
-          `  ${this.capitalize(field.name)} ${this.fieldTypeToGoType(field.type as FieldType, field)} \`json:"${field.name}"\``,
+          `  ${this.capitalize(field.name)} ${this.fieldTypeToGoType(field as FieldDefinition)} \`json:"${field.name}"\``,
       )
       .join("\n");
 
@@ -76,28 +85,6 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     ].join("\n");
   }
 
-  fieldTypeToGoType(fieldType: FieldType, field?: FieldDefinition): string {
-    let baseType = "";
-
-    if (STRING_TYPES.includes(fieldType as StringType)) baseType = "string";
-    else if (NUMBER_TYPES.includes(fieldType as NumberType))
-      baseType = fieldType;
-    else if (BYTE_TYPES.includes(fieldType as ByteType)) baseType = "[]byte";
-    else if (fieldType === "bool") baseType = "bool";
-    else {
-      if (!this.knownSchemas.has(fieldType)) {
-        throw new Error(`Unknown field type: '${fieldType}'`);
-      }
-      baseType = `*${fieldType}`;
-    }
-
-    if (field?.isArray) {
-      return `[]${baseType}`;
-    }
-
-    return baseType;
-  }
-
   decodeHelper(typeName: string): string {
     return [
       `func (p *${typeName}) FromSiaBytes(bytes []byte) *${typeName} {`,
@@ -108,7 +95,7 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
   }
 
   encodeMethod(schema: SchemaDefinition): string {
-    const code = [
+    const parts = [
       `func (p *${schema.name}) Sia() sia.Sia {`,
       `  s := sia.New()`,
     ];
@@ -118,44 +105,45 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
         const ref = `p.${this.capitalize(field.name)}`;
         const val = this.getRefWithDefault(field, ref);
         const call = this.getSerializeFunctionName(field, val);
-        code.push(`  s.${call}`);
+        parts.push(`  s.${call}`);
       }
     }
 
     for (const field of schema.fields.filter((f) => f.isArray)) {
-      const elemType = this.elementGoType(field.type as FieldType);
+      const goType = this.fieldTypeToGoType(field as FieldDefinition);
+      const elementType = goType.startsWith("[]") ? goType.slice(2) : goType;
       const fieldName = this.capitalize(field.name);
 
-      code.push(`  {`);
-      code.push(`    arr := sia.NewSiaArray[${elemType}]()`);
+      parts.push(`  {`);
+      parts.push(`    arr := sia.NewSiaArray[${elementType}]()`);
 
-      code.push(
-        `    arr.AddArray8(p.${fieldName}, func(s *sia.ArraySia[${elemType}], item ${elemType}) {`,
+      parts.push(
+        `    arr.AddArray8(p.${fieldName}, func(s *sia.ArraySia[${elementType}], item ${elementType}) {`,
       );
 
       if (this.knownSchemas.has(field.type as string)) {
-        code.push(`      s.EmbedBytes(item.Sia().Bytes())`);
+        parts.push(`      s.EmbedBytes(item.Sia().Bytes())`);
       } else {
         const dummyField = { ...field, isArray: false, type: field.type };
         const serFunc = this.getSerializeFunctionName(dummyField, "item");
-        code.push(`      s.${serFunc}`);
+        parts.push(`      s.${serFunc}`);
       }
 
-      code.push(`    })`);
-      code.push(`    s.EmbedSia(arr.GetSia())`);
-      code.push(`  }`);
+      parts.push(`    })`);
+      parts.push(`    s.EmbedSia(arr.GetSia())`);
+      parts.push(`  }`);
     }
 
-    code.push(`  return s`);
-    code.push(`}\n`);
+    parts.push(`  return s`);
+    parts.push(`}\n`);
 
-    return code.join("\n");
+    return parts.join("\n");
   }
 
   decodeMethod(schema: SchemaDefinition): string {
-    const lines: string[] = [];
+    const parts: string[] = [];
 
-    lines.push(`func (p *${schema.name}) FromSia(s sia.Sia) *${schema.name} {`);
+    parts.push(`func (p *${schema.name}) FromSia(s sia.Sia) *${schema.name} {`);
 
     for (const field of schema.fields.filter((f) => !f.isArray)) {
       const name = `p.${this.capitalize(field.name)}`;
@@ -163,26 +151,28 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
 
       if (this.knownSchemas.has(fieldType)) {
         const varName = fieldType.toLowerCase();
-        lines.push(`  ${varName} := ${fieldType}{}`);
-        lines.push(`  ${name} = ${varName}.FromSia(s)`);
+        parts.push(`  ${varName} := ${fieldType}{}`);
+        parts.push(`  ${name} = ${varName}.FromSia(s)`);
       } else {
         const call = this.getDeserializeFunctionName(field);
         const args = this.getDeserializeFunctionArgs(field);
-        lines.push(`  ${name} = ${call}${args}`);
+        parts.push(`  ${name} = ${call}${args}`);
       }
     }
 
     for (const field of schema.fields.filter((f) => f.isArray)) {
-      const elemType = this.elementGoType(field.type as FieldType);
+      const goType = this.fieldTypeToGoType(field as FieldDefinition);
+      const elementType = goType.startsWith("[]") ? goType.slice(2) : goType;
+
       const fieldName = `p.${this.capitalize(field.name)}`;
 
-      lines.push(`  {`);
-      lines.push(`    reader := sia.NewArray[${elemType}](&s)`);
+      parts.push(`  {`);
+      parts.push(`    reader := sia.NewArray[${elementType}](&s)`);
 
       if (this.knownSchemas.has(field.type as string)) {
-        lines.push(
-          `    ${fieldName} = reader.ReadArray8(func(s *sia.ArraySia[${elemType}]) ${elemType} {`,
-          `      var x ${elemType}`,
+        parts.push(
+          `    ${fieldName} = reader.ReadArray8(func(s *sia.ArraySia[${elementType}]) ${elementType} {`,
+          `      var x ${elementType}`,
           `      return *x.FromSiaBytes(s.Bytes())`,
           `    })`,
         );
@@ -190,43 +180,45 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
         const dummyField = { ...field, isArray: false, type: field.type };
         const deserializeCall = this.getDeserializeFunctionName(dummyField);
         const deserializeArgs = this.getDeserializeFunctionArgs(dummyField);
-        lines.push(
-          `    ${fieldName} = reader.ReadArray8(func(s *sia.ArraySia[${elemType}]) ${elemType} {`,
+        parts.push(
+          `    ${fieldName} = reader.ReadArray8(func(s *sia.ArraySia[${elementType}]) ${elementType} {`,
           `      return ${deserializeCall}${deserializeArgs}`,
           `    })`,
         );
       }
 
-      lines.push(`  }`);
+      parts.push(`  }`);
     }
 
-    lines.push(`  return p`);
-    lines.push(`}\n`);
+    parts.push(`  return p`);
+    parts.push(`}\n`);
 
-    return lines.join("\n");
+    return parts.join("\n");
+  }
+
+  fieldTypeToGoType(field: FieldDefinition): string {
+    let baseType: string;
+
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      baseType = "string";
+    } else if (NUMBER_TYPES.includes(field.type as NumberType)) {
+      baseType = field.type;
+    } else if (BYTE_TYPES.includes(field.type as ByteType)) {
+      baseType = "[]byte";
+    } else if (field.type === "bool") {
+      baseType = "bool";
+    } else {
+      if (!this.knownSchemas.has(field.type)) {
+        throw new Error(`Unknown field type: '${field.type}'`);
+      }
+      baseType = `*${field.type}`;
+    }
+
+    return field?.isArray ? `[]${baseType}` : baseType;
   }
 
   capitalize(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
-  }
-
-  elementGoType(fieldType: FieldType): string {
-    if (STRING_TYPES.includes(fieldType as StringType)) {
-      return "string";
-    }
-    if (NUMBER_TYPES.includes(fieldType as NumberType)) {
-      return fieldType;
-    }
-    if (BYTE_TYPES.includes(fieldType as ByteType)) {
-      return "byte";
-    }
-    if (fieldType === "bool") {
-      return "bool";
-    }
-    if (!this.knownSchemas.has(fieldType)) {
-      throw new Error(`Unknown field type: '${fieldType}'`);
-    }
-    return `*${fieldType}`;
   }
 
   private getStringEncodingSuffix(encoding: string | undefined): string {
@@ -235,11 +227,14 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     return suffix;
   }
 
-  getSerializeFunctionName(field: FieldDefinition, ref: string): string {
+  private getSerializeFunctionName(
+    field: FieldDefinition,
+    ref: string,
+  ): string {
     const fieldType = field.type as FieldType;
 
     if (field.isArray) {
-      const itemType = this.fieldTypeToGoType(field.type as FieldType);
+      const itemType = this.fieldTypeToGoType(field as FieldDefinition);
       const serializeFunc = this.getSerializeFunctionName(
         { type: field.type } as FieldDefinition,
         "item",
@@ -267,7 +262,7 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     return `EmbedSia(${ref}.Sia().GetSia())`;
   }
 
-  getDeserializeFunctionName(field: FieldDefinition): string {
+  private getDeserializeFunctionName(field: FieldDefinition): string {
     const fieldType = field.type as FieldType;
 
     if (STRING_TYPES.includes(fieldType as StringType)) {
@@ -288,7 +283,7 @@ import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
     return `Decode${fieldType}`;
   }
 
-  getDeserializeFunctionArgs(field: FieldDefinition): string {
+  private getDeserializeFunctionArgs(field: FieldDefinition): string {
     if (field.type === "byteN") {
       return `(${this.getFixedLength(field)})`;
     }
