@@ -46,15 +46,24 @@ const compileAction = async (file: string, options: Options) => {
         ? options.output
         : join(process.cwd(), basename(file, extname(file)));
 
-      const baseFileName = basename(basePath, extname(basePath));
+      const baseFileName =
+        extname(basePath) === ".cpp"
+          ? basename(basePath, ".cpp")
+          : basename(basePath);
+
+      const dir = options.output
+        ? join(process.cwd(), basePath.replace(/[/\\][^/\\]+$/, ""))
+        : process.cwd();
+
+      const headerPath = join(dir, `${baseFileName}.hpp`);
+      const sourcePath = join(dir, `${baseFileName}.cpp`);
+
       const { hpp, cpp } = await generator.toHeaderAndSource(baseFileName);
 
       if (options.string) {
         console.log("Header File:\n", hpp);
         console.log("Source File:\n", cpp);
       } else {
-        const headerPath = `${basePath}.hpp`;
-        const sourcePath = `${basePath}.cpp`;
         writeFileSync(headerPath, hpp);
         writeFileSync(sourcePath, cpp);
         console.log(`Output written to ${headerPath} and ${sourcePath}`);
