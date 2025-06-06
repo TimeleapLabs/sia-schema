@@ -136,16 +136,18 @@ export class TSGenerator implements CodeGenerator {
 
     for (const field of allFields) {
       if (field.isArray) {
+        const funcName = this.getSerializeFunctionName(field);
+        const funcArgs = this.getSerializeFunctionArgs(field);
         parts.push(
-          `  sia.addArray8(${field.name}, (s, v) => ${this.getSerializeFunctionName(field)}(${this.getSerializeFunctionArgs(field)}v));`,
+          `  sia.addArray8(${field.name}, (s: Sia, v)  => ${funcName}(${funcArgs}v));`,
         );
       } else {
+        const funcName = this.getSerializeFunctionName(field);
+        const funcArgs = this.getSerializeFunctionArgs(field);
         const value = field.optional
           ? `${field.name} ?? ${this.getDefaultValue(field.type as FieldType)}`
           : field.name;
-        parts.push(
-          `  ${this.getSerializeFunctionName(field)}(${this.getSerializeFunctionArgs(field)}${value});`,
-        );
+        parts.push(`  ${funcName}(${funcArgs}${value});`);
       }
     }
 
@@ -158,29 +160,29 @@ export class TSGenerator implements CodeGenerator {
     );
     parts.push("  const response = await method.populate(sia).invoke();");
 
-    const allReturns = Array.isArray(method.returns)
+    const returnsArray = Array.isArray(method.returns)
       ? method.returns
       : [method.returns];
 
-    if (allReturns.length > 1) {
-      for (const field of allReturns) {
+    if (returnsArray.length > 1) {
+      for (const field of returnsArray) {
+        const funcName = this.getDeserializeFunctionName(field, "response");
+        const funcArgs = this.getDeserializeFunctionArgs(field, "response");
         const variable = camelCase(`resp_${field.name}`);
-        parts.push(
-          `  const ${variable} = ${this.getDeserializeFunctionName(field, "response")}(${this.getDeserializeFunctionArgs(field, "response")});`,
-        );
+        parts.push(`  const ${variable} = ${funcName}(${funcArgs});`);
       }
 
       parts.push("  return {");
-      for (const field of allReturns) {
+      for (const field of returnsArray) {
         const variable = camelCase(`resp_${field.name}`);
         parts.push(`    ${field.name}: ${variable},`);
       }
       parts.push("  };");
     } else {
-      const field = allReturns[0];
-      parts.push(
-        `  const value = ${this.getDeserializeFunctionName(field, "response")}(${this.getDeserializeFunctionArgs(field, "response")});`,
-      );
+      const field = returnsArray[0];
+      const funcName = this.getDeserializeFunctionName(field, "response");
+      const funcArgs = this.getDeserializeFunctionArgs(field, "response");
+      parts.push(`  const value = ${funcName}(${funcArgs});`);
       parts.push("  return value;");
     }
 
@@ -216,13 +218,15 @@ export class TSGenerator implements CodeGenerator {
       }
 
       if (field.isArray) {
+        const funcName = this.getSerializeFunctionName(field, "s");
+        const funcArgs = this.getSerializeFunctionArgs(field);
         parts.push(
-          `  sia.addArray8(${value}, (s, v) => ${this.getSerializeFunctionName(field)}(${this.getSerializeFunctionArgs(field)}v));`,
+          `  sia.addArray8(${value}, (s: Sia, v) => ${funcName}(${funcArgs}v));`,
         );
       } else {
-        parts.push(
-          `  ${this.getSerializeFunctionName(field)}(${this.getSerializeFunctionArgs(field)}${value});`,
-        );
+        const funcName = this.getSerializeFunctionName(field);
+        const funcArgs = this.getSerializeFunctionArgs(field);
+        parts.push(`  ${funcName}(${funcArgs}${value});`);
       }
     }
 
@@ -235,13 +239,15 @@ export class TSGenerator implements CodeGenerator {
     parts.push("  return {");
     for (const field of schema.fields) {
       if (field.isArray) {
+        const funcName = this.getDeserializeFunctionName(field, "s");
+        const funcArgs = this.getDeserializeFunctionArgs(field);
         parts.push(
-          `    ${field.name}: sia.readArray8((s) => ${this.getDeserializeFunctionName(field)}(${this.getDeserializeFunctionArgs(field)})),`,
+          `    ${field.name}: sia.readArray8((s: Sia) => ${funcName}(${funcArgs})),`,
         );
       } else {
-        parts.push(
-          `    ${field.name}: ${this.getDeserializeFunctionName(field)}(${this.getDeserializeFunctionArgs(field)}),`,
-        );
+        const funcName = this.getDeserializeFunctionName(field);
+        const funcArgs = this.getDeserializeFunctionArgs(field);
+        parts.push(`    ${field.name}: ${funcName}(${funcArgs}),`);
       }
     }
     parts.push("  };");
@@ -272,10 +278,13 @@ export class TSGenerator implements CodeGenerator {
     return field.isArray ? `${tsType}[]` : tsType;
   }
 
-  private getSerializeFunctionName(field: FieldDefinition): string {
+  private getSerializeFunctionName(
+    field: FieldDefinition,
+    sia = "sia",
+  ): string {
     if (field.type === "string") {
       if (field.encoding === "ascii") {
-        return "sia.addAscii";
+        return `${sia}.addAscii`;
       }
 
       throw new Error(`Unknown encoding: ${field.encoding}`);
@@ -284,33 +293,33 @@ export class TSGenerator implements CodeGenerator {
     if (BYTE_TYPES.includes(field.type as ByteType)) {
       switch (field.type) {
         case "byteN":
-          return "sia.addByteArrayN";
+          return `${sia}.addByteArrayN`;
         case "byte8":
-          return "sia.addByteArray8";
+          return `${sia}.addByteArray8`;
         case "byte16":
-          return "sia.addByteArray16";
+          return `${sia}.addByteArray16`;
         case "byte32":
-          return "sia.addByteArray32";
+          return `${sia}.addByteArray32`;
         case "byte64":
-          return "sia.addByteArray64";
+          return `${sia}.addByteArray64`;
       }
     }
 
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
       switch (field.type) {
         case "uint8":
-          return "sia.addUInt8";
+          return `${sia}.addUInt8`;
         case "uint16":
-          return "sia.addUInt16";
+          return `${sia}.addUInt16`;
         case "uint32":
-          return "sia.addUInt32";
+          return `${sia}.addUInt32`;
         case "uint64":
-          return "sia.addUInt64";
+          return `${sia}.addUInt64`;
       }
     }
 
     if (FIELD_TYPES.includes(field.type as FieldType)) {
-      return `sia.add${pascalCase(field.type)}`;
+      return `${sia}.add${pascalCase(field.type)}`;
     }
 
     return `encode${pascalCase(field.type)}`;
