@@ -14,6 +14,8 @@ import type {
 import type {
   Definition,
   FieldDefinition,
+  MethodDefinition,
+  PluginDefinition,
   SchemaDefinition,
 } from "@/compiler/visitor.js";
 
@@ -33,6 +35,19 @@ export class CPPGenerator implements CodeGenerator {
   async toCode(): Promise<string> {
     const { hpp, cpp } = await this.toHeaderAndSource();
     return hpp + "\n\n" + cpp;
+  }
+
+  pluginToCode(schema: PluginDefinition): string {
+    return [
+      `// Plugin '${schema.name}' is not supported in C++ generator.`,
+      `// RPC support must be implemented manually.`,
+      `// See: https://timeleap.swiss/docs/products/sia/highlevel#rpc`,
+    ].join("\n");
+  }
+
+  methodToCode(method: MethodDefinition): string {
+    // Not implemented yet
+    return `// method ${method} not implemented`;
   }
 
   schemaToCode(schema: SchemaDefinition): string {
@@ -70,7 +85,7 @@ export class CPPGenerator implements CodeGenerator {
         hppParts.push(hpp);
         cppParts.push(cpp);
       } else if (definition.type === "plugin") {
-        cppParts.push(this.pluginNotice(definition.name));
+        cppParts.push(this.pluginToCode(definition));
       }
     }
 
@@ -82,7 +97,7 @@ export class CPPGenerator implements CodeGenerator {
 
   schemaToHppAndCpp(
     schema: SchemaDefinition,
-    includeSerialization = true,
+    includeSource = true,
   ): { hpp: string; cpp: string } {
     const structName = pascalCase(schema.name);
     const varName = camelCase(schema.name);
@@ -95,8 +110,10 @@ export class CPPGenerator implements CodeGenerator {
       let defaultValueCode = "";
 
       if (field.defaultValue !== undefined) {
-        if (this.cppLiteralDefault(field))
-          defaultValueCode += ` = ${this.cppLiteralDefault(field)}`;
+        const defaultLiteral = this.getCppLiteralDefault(field);
+        if (defaultLiteral) {
+          defaultValueCode = ` = ${defaultLiteral}`;
+        }
       }
 
       hppParts.push(`  ${cppType} ${field.name}${defaultValueCode};`);
@@ -104,59 +121,75 @@ export class CPPGenerator implements CodeGenerator {
 
     hppParts.push(`}; \n`);
 
-    if (includeSerialization) {
-      hppParts.push(
-        `std::shared_ptr<sia::Sia> encode${structName}(const ${structName}& ${varName});`,
-        `${structName} decode${structName}(std::shared_ptr<sia::Sia> sia);`,
-      );
+    let cpp = "";
 
-      const cppParts = [
-        `std::shared_ptr<sia::Sia> encode${structName}(const ${structName}& ${varName}) {`,
-        `  auto sia = sia::New();`,
-      ];
-      for (const field of schema.fields) {
-        const code = this.getSerializeFunctionName(
-          field,
-          `${varName}.${field.name}`,
-        );
-        cppParts.push(`  ${code};`);
-      }
-      cppParts.push(`  return sia;`);
-      cppParts.push(`} \n`);
+    if (includeSource) {
+      hppParts.push(this.encodeHppMethod(structName, varName));
+      hppParts.push(this.decodeHppMethod(structName));
 
-      cppParts.push(
-        `${structName} decode${structName}(std::shared_ptr<sia::Sia> sia) {`,
-      );
-      cppParts.push(`  ${structName} result;`);
-      for (const field of schema.fields) {
-        const code = this.getDeSerializeFunctionName(
-          field,
-          "sia",
-          `result.${field.name}`,
-        );
-        cppParts.push(code);
-      }
-      cppParts.push(`  return result;`);
-      cppParts.push(`}`);
-
-      return {
-        hpp: hppParts.join("\n"),
-        cpp: cppParts.join("\n"),
-      };
-    } else {
-      return {
-        hpp: hppParts.join("\n"),
-        cpp: "",
-      };
+      const cppEncode = this.encodeCppSourceMethod(schema, structName, varName);
+      const cppDecode = this.decodeCppSourceMethod(schema, structName);
+      cpp = [cppEncode, cppDecode].join("\n\n");
     }
+
+    return {
+      hpp: hppParts.join("\n"),
+      cpp,
+    };
   }
 
-  private pluginNotice(name: string): string {
-    return [
-      `// Plugin '${name}' is not supported in C++ generator.`,
-      `// RPC support must be implemented manually.`,
-      `// See: https://timeleap.swiss/docs/products/sia/highlevel#rpc`,
-    ].join("\n");
+  private encodeHppMethod(structName: string, varName: string): string {
+    return `std::shared_ptr<sia::Sia> encode${structName}(const ${structName}& ${varName});`;
+  }
+
+  private decodeHppMethod(structName: string): string {
+    return `${structName} decode${structName}(std::shared_ptr<sia::Sia> sia);`;
+  }
+
+  private encodeCppSourceMethod(
+    schema: SchemaDefinition,
+    structName: string,
+    varName: string,
+  ): string {
+    const cppParts = [
+      `std::shared_ptr<sia::Sia> encode${structName}(const ${structName}& ${varName}) {`,
+      `  auto sia = sia::New();`,
+    ];
+
+    for (const field of schema.fields) {
+      const code = this.getSerializeFunctionName(
+        field,
+        `${varName}.${field.name}`,
+      );
+      cppParts.push(`  ${code};`);
+    }
+
+    cppParts.push(`  return sia;`);
+    cppParts.push(`}`);
+    return cppParts.join("\n");
+  }
+
+  private decodeCppSourceMethod(
+    schema: SchemaDefinition,
+    structName: string,
+  ): string {
+    const cppParts = [
+      `${structName} decode${structName}(std::shared_ptr<sia::Sia> sia) {`,
+      `  ${structName} result;`,
+    ];
+
+    for (const field of schema.fields) {
+      const code = this.getDeSerializeFunctionName(
+        field,
+        "sia",
+        `result.${field.name}`,
+      );
+      cppParts.push(code);
+    }
+
+    cppParts.push(`  return result;`);
+    cppParts.push(`}`);
+    return cppParts.join("\n");
   }
 
   private fieldTypeToCppType(field: FieldDefinition): string {
@@ -177,55 +210,13 @@ export class CPPGenerator implements CodeGenerator {
     return baseType;
   }
 
-  private cppLiteralDefault(field: FieldDefinition): string {
-    if (STRING_TYPES.includes(field.type as StringType)) {
-      const escaped = String(field.defaultValue)
-        .replace(/\\/g, "\\\\")
-        .replace(/"/g, '\\"');
-
-      return `"${escaped}"`;
-    }
-
-    if (this.knownSchemas.has(field.type)) {
-      return "{}";
-    }
-
-    return "";
-  }
-
-  stringEncodingMap: Record<string, string> = {
-    ascii: "String8",
-    utf8: "String8",
-    utf16: "String16",
-    utf32: "String32",
-    utf64: "String64",
-  };
-
-  numbersEncodingMap: Record<string, string> = {
-    int8: "Int8",
-    int16: "Int16",
-    int32: "Int32",
-    int64: "Int64",
-    uint8: "UInt8",
-    uint16: "UInt16",
-    uint32: "UInt32",
-    uint64: "UInt64",
-  };
-
-  byteArrayEncodingMap: Record<string, string> = {
-    byte8: "ByteArray8",
-    byte16: "ByteArray16",
-    byte32: "ByteArray32",
-    byte64: "ByteArray64",
-  };
-
   private getSerializeFunctionName(
     field: FieldDefinition,
     accessExpr: string,
   ): string {
     if (field.isArray) {
       const cppType = this.fieldTypeToCppType(field);
-      const encoder = this.getEncoder(field, cppType);
+      const encoder = this.encodeArrayHelper(field, cppType);
       return `sia::AddArray8<${cppType}>(sia, ${accessExpr}, ${encoder})`;
     }
 
@@ -268,7 +259,7 @@ export class CPPGenerator implements CodeGenerator {
 
     if (field.isArray) {
       const cppType = this.fieldTypeToCppType(field);
-      const decoder = this.getDecoder(field, cppType);
+      const decoder = this.decodeArrayHelper(field, cppType);
       return assign(`sia::ReadArray8<${cppType}>(${siaVar}, ${decoder})`);
     }
 
@@ -297,7 +288,7 @@ export class CPPGenerator implements CodeGenerator {
     );
   }
 
-  private getEncoder(field: FieldDefinition, cppType: string): string {
+  private encodeArrayHelper(field: FieldDefinition, cppType: string): string {
     if (STRING_TYPES.includes(field.type as StringType)) {
       const suffix =
         this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
@@ -322,7 +313,7 @@ export class CPPGenerator implements CodeGenerator {
     throw new Error(`Unsupported encoder for type: '${field.type}'`);
   }
 
-  private getDecoder(field: FieldDefinition, cppType: string): string {
+  private decodeArrayHelper(field: FieldDefinition, cppType: string): string {
     if (STRING_TYPES.includes(field.type as StringType)) {
       const suffix =
         this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
@@ -346,4 +337,46 @@ export class CPPGenerator implements CodeGenerator {
 
     throw new Error(`Unsupported decoder for type: '${field.type}'`);
   }
+
+  private getCppLiteralDefault(field: FieldDefinition): string {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const escaped = String(field.defaultValue)
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"');
+
+      return `"${escaped}"`;
+    }
+
+    if (this.knownSchemas.has(field.type)) {
+      return "{}";
+    }
+
+    return "";
+  }
+
+  stringEncodingMap: Record<string, string> = {
+    ascii: "String8",
+    utf8: "String8",
+    utf16: "String16",
+    utf32: "String32",
+    utf64: "String64",
+  };
+
+  numbersEncodingMap: Record<string, string> = {
+    int8: "Int8",
+    int16: "Int16",
+    int32: "Int32",
+    int64: "Int64",
+    uint8: "UInt8",
+    uint16: "UInt16",
+    uint32: "UInt32",
+    uint64: "UInt64",
+  };
+
+  byteArrayEncodingMap: Record<string, string> = {
+    byte8: "ByteArray8",
+    byte16: "ByteArray16",
+    byte32: "ByteArray32",
+    byte64: "ByteArray64",
+  };
 }

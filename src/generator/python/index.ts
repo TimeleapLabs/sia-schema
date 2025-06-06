@@ -16,6 +16,8 @@ import type {
 import type {
   Definition,
   FieldDefinition,
+  MethodDefinition,
+  PluginDefinition,
   SchemaDefinition,
 } from "@/compiler/visitor.js";
 
@@ -32,26 +34,29 @@ export class PyGenerator implements CodeGenerator {
 
   async toCode(): Promise<string> {
     const parts: string[] = ["from sia import Sia"];
-    const pluginNotices: string[] = [];
 
     for (const schema of this.schema) {
       if (schema.type === "schema") {
         parts.push(this.schemaToCode(schema));
       } else if (schema.type === "plugin") {
-        pluginNotices.push(
-          `# Cannot generate plugin '${schema.name}' due to lack of RPC support in the Python Sia generator.`,
-        );
-        pluginNotices.push(
-          `# You must connect to this plugin manually via RPC. Please check the tutorial below:`,
-        );
-        pluginNotices.push(
-          `# https://timeleap.swiss/docs/products/sia/highlevel#rpc\n`,
-        );
+        parts.push(this.pluginToCode(schema));
       }
     }
 
-    parts.push(...pluginNotices);
     return parts.join("\n\n");
+  }
+
+  pluginToCode(schema: PluginDefinition): string {
+    return [
+      `# Cannot generate plugin '${schema.name}' due to lack of RPC support in the Python Sia generator.`,
+      `# You must connect to this plugin manually via RPC. Please check the tutorial below:`,
+      `# https://timeleap.swiss/docs/products/sia/highlevel#rpc`,
+    ].join("\n");
+  }
+
+  methodToCode(method: MethodDefinition): string {
+    // Not implemented yet
+    return `# method ${method} not implemented`;
   }
 
   schemaToCode(schema: SchemaDefinition): string {
@@ -70,7 +75,7 @@ export class PyGenerator implements CodeGenerator {
 
     for (const field of requiredFields) {
       parts.push(
-        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType, field.isArray)},`,
+        `        ${field.name}: ${this.fieldTypeToPyType(field as FieldDefinition)},`,
       );
     }
 
@@ -80,7 +85,7 @@ export class PyGenerator implements CodeGenerator {
           ? ` = ${this.getPythonLiteralDefault(field)}`
           : " = None";
       parts.push(
-        `        ${field.name}: ${this.fieldTypeToPyType(field.type as FieldType, field.isArray)}${defaultVal},`,
+        `        ${field.name}: ${this.fieldTypeToPyType(field as FieldDefinition)}${defaultVal},`,
       );
     }
 
@@ -98,58 +103,58 @@ export class PyGenerator implements CodeGenerator {
   }
 
   private encodeMethod(schema: SchemaDefinition): string {
-    const lines: string[] = [];
-    lines.push("");
-    lines.push("    def encode(self, sia: Sia) -> Sia:");
+    const parts: string[] = [];
+    parts.push("");
+    parts.push("    def encode(self, sia: Sia) -> Sia:");
 
     for (const field of schema.fields) {
       const valueExpr = `self.${field.name}`;
 
       if (field.isArray) {
-        const lambda = this.serializeArrayLambda(field);
-        lines.push(`        sia.add_array8(${valueExpr}, ${lambda})`);
+        const lambda = this.encodeArrayHelper(field);
+        parts.push(`        sia.add_array8(${valueExpr}, ${lambda})`);
       } else {
         const fn = this.getSerializeFunctionName(field);
         const isAscii = field.type == "string8" && field.encoding == "ascii";
         const comment = isAscii ? "  # ascii" : "";
 
         if (fn.startsWith("sia.")) {
-          lines.push(`        ${fn}(${valueExpr})${comment}`);
+          parts.push(`        ${fn}(${valueExpr})${comment}`);
         } else if (this.knownSchemas.has(field.type)) {
-          lines.push(`        ${valueExpr}.encode(sia)`);
+          parts.push(`        ${valueExpr}.encode(sia)`);
         } else {
-          lines.push(`        ${fn}(sia, ${valueExpr})`);
+          parts.push(`        ${fn}(sia, ${valueExpr})`);
         }
       }
     }
 
-    lines.push("        return sia");
-    return lines.join("\n");
+    parts.push("        return sia");
+    return parts.join("\n");
   }
 
   private decodeMethod(schema: SchemaDefinition): string {
-    const lines: string[] = [];
-    lines.push("");
-    lines.push("    @classmethod");
-    lines.push(`    def decode(cls, sia: Sia) -> "${schema.name}":`);
-    lines.push("        return cls(");
+    const parts: string[] = [];
+    parts.push("");
+    parts.push("    @classmethod");
+    parts.push(`    def decode(cls, sia: Sia) -> "${schema.name}":`);
+    parts.push("        return cls(");
 
     for (const field of schema.fields) {
       if (field.isArray) {
-        const lambda = this.deserializeArrayLambda(field);
-        lines.push(`            ${field.name}=sia.read_array8(${lambda}),`);
+        const lambda = this.decodeArrayHelper(field);
+        parts.push(`            ${field.name}=sia.read_array8(${lambda}),`);
       } else {
         const fn = this.getDeserializeFunctionName(field);
         const args = this.getDeserializeFunctionArgs(field);
-        lines.push(`            ${field.name}=${fn}(${args}),`);
+        parts.push(`            ${field.name}=${fn}(${args}),`);
       }
     }
 
-    lines.push("        )");
-    return lines.join("\n");
+    parts.push("        )");
+    return parts.join("\n");
   }
 
-  private serializeArrayLambda(field: FieldDefinition): string {
+  private encodeArrayHelper(field: FieldDefinition): string {
     const fn = this.getSerializeFunctionName(field);
     const args = this.getSerializeFunctionArgs(field);
 
@@ -163,7 +168,7 @@ export class PyGenerator implements CodeGenerator {
     return `lambda sia, v: ${fn}(sia, v)`;
   }
 
-  private deserializeArrayLambda(field: FieldDefinition): string {
+  private decodeArrayHelper(field: FieldDefinition): string {
     const fn = this.getDeserializeFunctionName(field);
 
     if (fn.startsWith("sia.")) {
@@ -176,48 +181,25 @@ export class PyGenerator implements CodeGenerator {
     return `lambda sia: ${fn}(sia)`;
   }
 
-  fieldTypeToPyType(fieldType: FieldType, isArray: boolean = false): string {
+  fieldTypeToPyType(field: FieldDefinition): string {
     let baseType: string;
 
-    if (STRING_TYPES.includes(fieldType as StringType)) baseType = "str";
-    else if (NUMBER_TYPES.includes(fieldType as NumberType)) baseType = "int";
-    else if (BYTE_TYPES.includes(fieldType as ByteType)) baseType = "bytes";
-    else if (fieldType === "bool") baseType = "bool";
-    else if (!this.knownSchemas.has(fieldType)) {
+    if (STRING_TYPES.includes(field.type as StringType)) baseType = "str";
+    else if (NUMBER_TYPES.includes(field.type as NumberType)) baseType = "int";
+    else if (BYTE_TYPES.includes(field.type as ByteType)) baseType = "bytes";
+    else if (field.type === "bool") baseType = "bool";
+    else if (!this.knownSchemas.has(field.type)) {
       throw new Error(
-        `Unknown field type: '${fieldType}'. If this is a custom type, please declare a schema with that name.`,
+        `Unknown field type: '${field.type}'. If this is a custom type, please declare a schema with that name.`,
       );
     } else {
-      baseType = `"${fieldType}"`;
+      baseType = `"${field.type}"`;
     }
 
-    return isArray ? `List[${baseType}]` : baseType;
+    return field.isArray ? `List[${baseType}]` : baseType;
   }
 
-  private getPythonLiteralDefault(field: FieldDefinition): string {
-    if (STRING_TYPES.includes(field.type as StringType)) {
-      return JSON.stringify(field.defaultValue);
-    }
-    return "None";
-  }
-
-  STRING_ENCODING_MAP: Record<string, string> = {
-    ascii: "string8",
-    utf8: "string8",
-    utf16: "string16",
-    utf32: "string32",
-    utf64: "string64",
-  };
-
-  BYTE_TYPE_MAP: Record<string, string> = {
-    byteN: "byte_array_n",
-    byte8: "byte_array8",
-    byte16: "byte_array16",
-    byte32: "byte_array32",
-    byte64: "byte_array64",
-  };
-
-  getSerializeFunctionName(field: FieldDefinition): string {
+  private getSerializeFunctionName(field: FieldDefinition): string {
     if (field.type === "string") {
       const suffix = this.STRING_ENCODING_MAP[field.encoding as string];
       if (!suffix) {
@@ -244,7 +226,7 @@ export class PyGenerator implements CodeGenerator {
     return `${field.type}.encode`;
   }
 
-  getSerializeFunctionArgs(field: FieldDefinition): string {
+  private getSerializeFunctionArgs(field: FieldDefinition): string {
     if (FIELD_TYPES.includes(field.type as FieldType)) return "";
     if (
       BYTE_TYPES.includes(field.type as ByteType) ||
@@ -254,7 +236,7 @@ export class PyGenerator implements CodeGenerator {
     return "";
   }
 
-  getDeserializeFunctionName(field: FieldDefinition): string {
+  private getDeserializeFunctionName(field: FieldDefinition): string {
     if (field.type === "string") {
       const suffix = this.STRING_ENCODING_MAP[field.encoding as string];
       if (!suffix) {
@@ -281,7 +263,7 @@ export class PyGenerator implements CodeGenerator {
     return `${field.type}.decode`;
   }
 
-  getDeserializeFunctionArgs(field: FieldDefinition): string {
+  private getDeserializeFunctionArgs(field: FieldDefinition): string {
     if (field.type === "byteN") return this.getFixedLength(field);
     if (FIELD_TYPES.includes(field.type as FieldType)) return "";
     return "sia";
@@ -300,4 +282,27 @@ export class PyGenerator implements CodeGenerator {
       `Field ${field.name} is of fixed length but has no length specified.`,
     );
   }
+
+  private getPythonLiteralDefault(field: FieldDefinition): string {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      return JSON.stringify(field.defaultValue);
+    }
+    return "None";
+  }
+
+  STRING_ENCODING_MAP: Record<string, string> = {
+    ascii: "string8",
+    utf8: "string8",
+    utf16: "string16",
+    utf32: "string32",
+    utf64: "string64",
+  };
+
+  BYTE_TYPE_MAP: Record<string, string> = {
+    byteN: "byte_array_n",
+    byte8: "byte_array8",
+    byte16: "byte_array16",
+    byte32: "byte_array32",
+    byte64: "byte_array64",
+  };
 }
