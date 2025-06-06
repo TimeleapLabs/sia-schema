@@ -106,19 +106,7 @@ export class PyGenerator implements CodeGenerator {
       const valueExpr = `self.${field.name}`;
 
       if (field.isArray) {
-        const serializeElemFn = this.getSerializeFunctionName(field);
-        const serializeElemArgs = this.getSerializeFunctionArgs(field);
-        let lambda: string;
-
-        if (serializeElemFn.startsWith("sia.")) {
-          const method = serializeElemFn.slice(4);
-          lambda = `lambda sia, v: sia.${method}(${serializeElemArgs}v)`;
-        } else if (this.knownSchemas.has(field.type)) {
-          lambda = `lambda sia, v: v.encode(sia)`;
-        } else {
-          lambda = `lambda sia, v: ${serializeElemFn}(sia, v)`;
-        }
-
+        const lambda = this.serializeArrayLambda(field);
         lines.push(`        sia.add_array8(${valueExpr}, ${lambda})`);
       } else {
         const fn = this.getSerializeFunctionName(field);
@@ -148,18 +136,7 @@ export class PyGenerator implements CodeGenerator {
 
     for (const field of schema.fields) {
       if (field.isArray) {
-        const deserializeElemFn = this.getDeserializeFunctionName(field);
-        let lambda: string;
-
-        if (deserializeElemFn.startsWith("sia.")) {
-          const method = deserializeElemFn.slice(4);
-          lambda = `lambda sia: sia.${method}()`;
-        } else if (this.knownSchemas.has(field.type)) {
-          lambda = `lambda sia: ${field.type}.decode(sia)`;
-        } else {
-          lambda = `lambda sia: ${deserializeElemFn}(sia)`;
-        }
-
+        const lambda = this.deserializeArrayLambda(field);
         lines.push(`            ${field.name}=sia.read_array8(${lambda}),`);
       } else {
         const fn = this.getDeserializeFunctionName(field);
@@ -170,6 +147,33 @@ export class PyGenerator implements CodeGenerator {
 
     lines.push("        )");
     return lines.join("\n");
+  }
+
+  private serializeArrayLambda(field: FieldDefinition): string {
+    const fn = this.getSerializeFunctionName(field);
+    const args = this.getSerializeFunctionArgs(field);
+
+    if (fn.startsWith("sia.")) {
+      const method = fn.slice(4);
+      return `lambda sia, v: sia.${method}(${args}v)`;
+    }
+    if (this.knownSchemas.has(field.type)) {
+      return `lambda sia, v: v.encode(sia)`;
+    }
+    return `lambda sia, v: ${fn}(sia, v)`;
+  }
+
+  private deserializeArrayLambda(field: FieldDefinition): string {
+    const fn = this.getDeserializeFunctionName(field);
+
+    if (fn.startsWith("sia.")) {
+      const method = fn.slice(4);
+      return `lambda sia: sia.${method}()`;
+    }
+    if (this.knownSchemas.has(field.type)) {
+      return `lambda sia: ${field.type}.decode(sia)`;
+    }
+    return `lambda sia: ${fn}(sia)`;
   }
 
   fieldTypeToPyType(fieldType: FieldType, isArray: boolean = false): string {
