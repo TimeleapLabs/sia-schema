@@ -28,7 +28,6 @@ export class CPPGenerator implements CodeGenerator {
     this.knownSchemas = new Set(
       this.schema.filter((s) => s.type === "schema").map((s) => s.name),
     );
-    this.schema = this.reorderSchemas();
   }
 
   async toCode(): Promise<string> {
@@ -61,6 +60,12 @@ export class CPPGenerator implements CodeGenerator {
 
     for (const definition of this.schema) {
       if (definition.type === "schema") {
+        hppParts.push(`struct ${pascalCase(definition.name)};`);
+      }
+    }
+
+    for (const definition of this.schema) {
+      if (definition.type === "schema") {
         const { hpp, cpp } = this.schemaToHppAndCpp(definition);
         hppParts.push(hpp);
         cppParts.push(cpp);
@@ -84,7 +89,9 @@ export class CPPGenerator implements CodeGenerator {
 
     const hppParts = [`struct ${structName} {`];
     for (const field of schema.fields) {
-      const cppType = this.fieldTypeToCppType(field);
+      const cppType = field.isArray
+        ? `std::vector<${this.fieldTypeToCppType(field)}>`
+        : this.fieldTypeToCppType(field);
       let defaultValueCode = "";
 
       if (field.defaultValue !== undefined) {
@@ -122,7 +129,7 @@ export class CPPGenerator implements CodeGenerator {
       );
       cppParts.push(`  ${structName} result;`);
       for (const field of schema.fields) {
-        const code = this.getDeSerializeFunctionArgs(
+        const code = this.getDeSerializeFunctionName(
           field,
           "sia",
           `result.${field.name}`,
@@ -155,18 +162,19 @@ export class CPPGenerator implements CodeGenerator {
   private fieldTypeToCppType(field: FieldDefinition): string {
     let baseType: string;
 
-    if (STRING_TYPES.includes(field.type as StringType))
+    if (STRING_TYPES.includes(field.type as StringType)) {
       baseType = "std::string";
-    else if (NUMBER_TYPES.includes(field.type as NumberType))
-      baseType = "uint64_t";
-    else if (field.type === "bool") baseType = "bool";
-    else if (BYTE_TYPES.includes(field.type as ByteType))
+    } else if (NUMBER_TYPES.includes(field.type as NumberType)) {
+      return `${field.type}_t`;
+    } else if (field.type === "bool") {
+      baseType = "bool";
+    } else if (BYTE_TYPES.includes(field.type as ByteType)) {
       baseType = "std::vector<uint8_t>";
-    else if (this.knownSchemas.has(field.type))
-      baseType = pascalCase(field.type);
-    else throw new Error(`Unknown field type: '${field.type}'`);
+    } else if (this.knownSchemas.has(field.type)) {
+      baseType = `std::shared_ptr<${pascalCase(field.type)}>`;
+    } else throw new Error(`Unknown field type: '${field.type}'`);
 
-    return field.isArray ? `std::vector<${baseType}>` : baseType;
+    return baseType;
   }
 
   private cppLiteralDefault(field: FieldDefinition): string {
@@ -174,7 +182,6 @@ export class CPPGenerator implements CodeGenerator {
       const escaped = String(field.defaultValue)
         .replace(/\\/g, "\\\\")
         .replace(/"/g, '\\"');
-      // console.log(escaped);
 
       return `"${escaped}"`;
     }
@@ -217,34 +224,8 @@ export class CPPGenerator implements CodeGenerator {
     accessExpr: string,
   ): string {
     if (field.isArray) {
-      let encoder: string;
-      let cppType: string;
-
-      if (STRING_TYPES.includes(field.type as StringType)) {
-        cppType = "std::string";
-
-        const suffix =
-          this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
-        encoder = `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
-      } else if (NUMBER_TYPES.includes(field.type as NumberType)) {
-        cppType = field.type + "_t";
-        const suffix = this.numbersEncodingMap[field.type];
-        encoder = `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
-      } else if (field.type === "bool") {
-        cppType = "bool";
-        encoder = `[&](auto self, const ${cppType}& v) { self->AddBool(v); }`;
-      } else if (BYTE_TYPES.includes(field.type as ByteType)) {
-        const suffix = this.byteArrayEncodingMap[field.type];
-        cppType = "std::vector<uint8_t>";
-        encoder = `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
-      } else if (this.knownSchemas.has(field.type)) {
-        cppType = pascalCase(field.type);
-        const encoderName = `encode${cppType}`;
-        encoder = `[&](auto self, const ${cppType}& v) { self->EmbedSia(${encoderName}(v)); }`;
-      } else {
-        throw new Error(`Unsupported array element type: '${field.type}'`);
-      }
-
+      const cppType = this.fieldTypeToCppType(field);
+      const encoder = this.getEncoder(field, cppType);
       return `sia::AddArray8<${cppType}>(sia, ${accessExpr}, ${encoder})`;
     }
 
@@ -268,10 +249,17 @@ export class CPPGenerator implements CodeGenerator {
       return `sia->Add${funcSuffix}(${accessExpr})`;
     }
 
-    return `auto embedded = encode${pascalCase(field.type)}(${accessExpr});\n  sia->EmbedSia(embedded)`;
+    return [
+      `if (${accessExpr}) {`,
+      `  auto embedded = encode${pascalCase(field.type)}(*${accessExpr});`,
+      `  sia->EmbedSia(embedded);`,
+      `} else {`,
+      `  sia->EmbedSia(sia::New());`,
+      `}`,
+    ].join("\n  ");
   }
 
-  private getDeSerializeFunctionArgs(
+  private getDeSerializeFunctionName(
     field: FieldDefinition,
     siaVar: string,
     targetExpr: string,
@@ -279,33 +267,8 @@ export class CPPGenerator implements CodeGenerator {
     const assign = (val: string) => `  ${targetExpr} = ${val};`;
 
     if (field.isArray) {
-      let decoder: string;
-      let cppType: string;
-
-      if (STRING_TYPES.includes(field.type as StringType)) {
-        cppType = "std::string";
-        const suffix =
-          this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
-        decoder = `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
-      } else if (NUMBER_TYPES.includes(field.type as NumberType)) {
-        cppType = field.type + "_t";
-        const suffix = this.numbersEncodingMap[field.type];
-        decoder = `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
-      } else if (field.type === "bool") {
-        cppType = "bool";
-        decoder = `[&](auto self) -> ${cppType} { return self->ReadBool(); }`;
-      } else if (BYTE_TYPES.includes(field.type as ByteType)) {
-        cppType = "std::vector<uint8_t>";
-        const suffix = this.byteArrayEncodingMap[field.type];
-        decoder = `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
-      } else if (this.knownSchemas.has(field.type)) {
-        cppType = pascalCase(field.type);
-        const decoderName = `decode${cppType}`;
-        decoder = `[&](auto self) -> ${cppType} { return ${decoderName}(self); }`;
-      } else {
-        throw new Error(`Unsupported array element type: '${field.type}'`);
-      }
-
+      const cppType = this.fieldTypeToCppType(field);
+      const decoder = this.getDecoder(field, cppType);
       return assign(`sia::ReadArray8<${cppType}>(${siaVar}, ${decoder})`);
     }
 
@@ -329,47 +292,58 @@ export class CPPGenerator implements CodeGenerator {
       );
     }
 
-    return assign(`decode${pascalCase(field.type)}(${siaVar})`);
+    return assign(
+      `std::make_shared<${pascalCase(field.type)}>(decode${pascalCase(field.type)}(${siaVar}))`,
+    );
   }
 
-  // reorders an array of schema definitions so that any schema's dependencies come before the schema itself. (cpp only)
-  private reorderSchemas(): Definition[] {
-    const schemaMap = new Map<string, SchemaDefinition>();
-    const dependencies = new Map<string, Set<string>>();
-
-    for (const def of this.schema) {
-      if (def.type === "schema") {
-        schemaMap.set(def.name, def);
-        const deps = new Set<string>();
-        for (const field of def.fields) {
-          if (this.knownSchemas.has(field.type)) {
-            deps.add(field.type);
-          }
-        }
-        dependencies.set(def.name, deps);
-      }
+  private getEncoder(field: FieldDefinition, cppType: string): string {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const suffix =
+        this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
+      return `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
+    }
+    if (NUMBER_TYPES.includes(field.type as NumberType)) {
+      const suffix = this.numbersEncodingMap[field.type];
+      return `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
+    }
+    if (field.type === "bool") {
+      return `[&](auto self, const ${cppType}& v) { self->AddBool(v); }`;
+    }
+    if (BYTE_TYPES.includes(field.type as ByteType)) {
+      const suffix = this.byteArrayEncodingMap[field.type];
+      return `[&](auto self, const ${cppType}& v) { self->Add${suffix}(v); }`;
+    }
+    if (this.knownSchemas.has(field.type)) {
+      const encoderName = `encode${cppType}`;
+      return `[&](auto self, const ${cppType}& v) { self->EmbedSia(${encoderName}(v)); }`;
     }
 
-    const visited = new Set<string>();
-    const sorted: SchemaDefinition[] = [];
+    throw new Error(`Unsupported encoder for type: '${field.type}'`);
+  }
 
-    function visit(name: string) {
-      if (visited.has(name)) return;
-      visited.add(name);
-
-      for (const dep of dependencies.get(name) ?? []) {
-        visit(dep);
-      }
-
-      const schema = schemaMap.get(name);
-      if (schema) sorted.push(schema);
+  private getDecoder(field: FieldDefinition, cppType: string): string {
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const suffix =
+        this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
+      return `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
+    }
+    if (NUMBER_TYPES.includes(field.type as NumberType)) {
+      const suffix = this.numbersEncodingMap[field.type];
+      return `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
+    }
+    if (field.type === "bool") {
+      return `[&](auto self) -> ${cppType} { return self->ReadBool(); }`;
+    }
+    if (BYTE_TYPES.includes(field.type as ByteType)) {
+      const suffix = this.byteArrayEncodingMap[field.type];
+      return `[&](auto self) -> ${cppType} { return self->Read${suffix}(); }`;
+    }
+    if (this.knownSchemas.has(field.type)) {
+      const decoderName = `decode${cppType}`;
+      return `[&](auto self) -> ${cppType} { return ${decoderName}(self); }`;
     }
 
-    // Visit all schemas
-    for (const name of schemaMap.keys()) {
-      visit(name);
-    }
-
-    return sorted;
+    throw new Error(`Unsupported decoder for type: '${field.type}'`);
   }
 }
