@@ -52,8 +52,8 @@ This will generate the exact same code as above.
 
 | Language   | Basic Support | Arrays | Hash Maps | Plugins |
 | ---------- | ------------- | ------ | --------- | ------- |
-| TypeScript | 👍            | ❌     | ❌        | 👍      |
+| TypeScript | 👍            | 👍     | ❌        | 👍      |
 | JavaScript | ❌            | ❌     | ❌        | ❌      |
-| Python     | 👍            | ❌     | ❌        | ❌      |
-| Go         | 👍            | ❌     | ❌        | ❌      |
-| C/C++      | 👍            | ❌     | ❌        | ❌      |
+| Python     | 👍            | 👍     | ❌        | ❌      |
+| Go         | 👍            | 👍     | ❌        | ❌      |
+| C/C++      | 👍            | 👍     | ❌        | ❌      |
