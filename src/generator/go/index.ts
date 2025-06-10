@@ -323,7 +323,9 @@ export class GoGenerator implements CodeGenerator {
 
     if (defaultVal == zero) return ref;
 
-    return `(func() ${fieldType} {
+    const goFieldType = this.fieldTypeToGoType(field as FieldDefinition);
+
+    return `(func() ${goFieldType} {
     if ${ref} == ${zero} {
       return ${defaultVal}
     }
