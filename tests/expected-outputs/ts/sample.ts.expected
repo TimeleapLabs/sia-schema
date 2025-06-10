@@ -1,0 +1,104 @@
+import { Sia } from "@timeleap/sia";
+import { Client, Function } from "@timeleap/client";
+
+export interface Sample {
+  name: string;
+  age?: number;
+  email?: string[];
+  tags: string[];
+  test?: Uint8Array | Buffer;
+  test64: Uint8Array | Buffer;
+  address: SampleAddress;
+}
+
+export function encodeSample(sia: Sia, sample: Sample): Sia {
+  sia.addString8(sample.name);
+  sia.addInt32(sample.age ?? 0);
+  sia.addArray8(sample.email ?? [], (s: Sia, v) => s.addString8(v));
+  sia.addArray8(sample.tags, (s: Sia, v) => s.addString8(v));
+  sia.addByteArrayN(sample.test ?? new Uint8Array(0));
+  sia.addByteArray64(sample.test64);
+  encodeSampleAddress(sia, sample.address);
+  return sia;
+}
+
+export function decodeSample(sia: Sia): Sample {
+  return {
+    name: sia.readString8(),
+    age: sia.readInt32(),
+    email: sia.readArray8((s: Sia) => s.readString8()),
+    tags: sia.readArray8((s: Sia) => s.readString8()),
+    test: sia.readByteArrayN(32),
+    test64: sia.readByteArray64(),
+    address: decodeSampleAddress(sia),
+  };
+}
+
+export interface SampleAddress {
+  street?: string;
+  city: string;
+  zip: number;
+}
+
+export function encodeSampleAddress(
+  sia: Sia,
+  sampleAddress: SampleAddress,
+): Sia {
+  sia.addAscii(sampleAddress.street ?? "");
+  sia.addString8(sampleAddress.city);
+  sia.addInt32(sampleAddress.zip);
+  return sia;
+}
+
+export function decodeSampleAddress(sia: Sia): SampleAddress {
+  return {
+    street: sia.readAscii(),
+    city: sia.readString8(),
+    zip: sia.readInt32(),
+  };
+}
+
+export class Sorcery {
+  private methods: Map<string, Function> = new Map();
+  private pluginName = "swiss.timeleap.isWizard.v1";
+
+  constructor(private client: Client) {}
+
+  static connect(client: Client): Sorcery {
+    return new Sorcery(client);
+  }
+
+  private getMethod(method: string, timeout: number): Function {
+    if (!this.methods.has(method)) {
+      this.methods.set(
+        method,
+        this.client.method({
+          plugin: this.pluginName,
+          method,
+          timeout,
+        }),
+      );
+    }
+    return this.methods.get(method)!;
+  }
+
+  public async isWizard(
+    sia: Sia,
+    age: number,
+    name: string[],
+  ): Promise<{
+    isWizard: boolean;
+    message: string;
+  }> {
+    sia.addUInt8(age);
+    sia.addArray8(name, (s: Sia, v) => sia.addString8(v));
+    const method = this.getMethod("isWizard", 5000);
+    const response = await method.populate(sia).invoke();
+    const respIsWizard = response.readBool();
+    const respMessage = response.readString8();
+    return {
+      isWizard: respIsWizard,
+      message: respMessage,
+    };
+  }
+}
