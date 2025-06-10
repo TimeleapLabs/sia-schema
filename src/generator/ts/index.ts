@@ -295,12 +295,21 @@ export class TSGenerator implements CodeGenerator {
     field: FieldDefinition,
     sia = "sia",
   ): string {
-    if (field.type === "string") {
+    if (STRING_TYPES.includes(field.type as StringType)) {
       if (field.encoding === "ascii") {
         return `${sia}.addAscii`;
+      } else {
+        switch (field.type) {
+          case "string8":
+            return `${sia}.addString8`;
+          case "string16":
+            return `${sia}.addString16`;
+          case "string32":
+            return `${sia}.addString32`;
+          case "string64":
+            return `${sia}.addString64`;
+        }
       }
-
-      throw new Error(`Unknown encoding: ${field.encoding}`);
     }
 
     if (BYTE_TYPES.includes(field.type as ByteType)) {
@@ -350,12 +359,21 @@ export class TSGenerator implements CodeGenerator {
     field: FieldDefinition,
     sia = "sia",
   ): string {
-    if (field.type === "string") {
+    if (STRING_TYPES.includes(field.type as StringType)) {
       if (field.encoding === "ascii") {
         return `${sia}.readAscii`;
+      } else {
+        switch (field.type) {
+          case "string8":
+            return `${sia}.readString8`;
+          case "string16":
+            return `${sia}.readString16`;
+          case "string32":
+            return `${sia}.readString32`;
+          case "string64":
+            return `${sia}.readString64`;
+        }
       }
-
-      throw new Error(`Unknown encoding: ${field.encoding}`);
     }
 
     if (BYTE_TYPES.includes(field.type as ByteType)) {
