@@ -60,7 +60,6 @@ export class CPPGenerator implements CodeGenerator {
     const baseName = fileName ?? "header";
 
     const hppParts: string[] = [
-      `// ${baseName}.hpp`,
       "#pragma once",
       [
         "#include <sia/sia.hpp>",
