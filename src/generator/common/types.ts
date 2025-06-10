@@ -1,8 +1,6 @@
 import { SchemaDefinition } from "@/compiler/visitor.js";
 
 export const STRING_TYPES = [
-  "stringN",
-  "string",
   "string8",
   "string16",
   "string32",

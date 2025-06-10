@@ -220,9 +220,11 @@ export class CPPGenerator implements CodeGenerator {
     }
 
     if (STRING_TYPES.includes(field.type as StringType)) {
-      const funcSuffix =
-        this.stringEncodingMap[(field.encoding as string) ?? "utf8"];
-      return `sia->Add${funcSuffix}(${accessExpr})`;
+      const suffix = field.encoding
+        ? this.stringEncodingMap[(field.encoding as string) ?? "utf8"]
+        : this.capitalizeFirstLetter(field.type);
+
+      return `sia->Add${suffix}(${accessExpr})`;
     }
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
       const suffix = this.numbersEncodingMap[field.type];
@@ -263,9 +265,10 @@ export class CPPGenerator implements CodeGenerator {
     }
 
     if (STRING_TYPES.includes(field.type as StringType)) {
-      return assign(
-        `${siaVar}->Read${this.stringEncodingMap[(field.encoding as string) ?? "utf8"]}()`,
-      );
+      const suffix = field.encoding
+        ? this.stringEncodingMap[(field.encoding as string) ?? "utf8"]
+        : this.capitalizeFirstLetter(field.type);
+      return assign(`${siaVar}->Read${suffix}()`);
     }
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
       return assign(`${siaVar}->Read${this.numbersEncodingMap[field.type]}()`);
@@ -351,6 +354,10 @@ export class CPPGenerator implements CodeGenerator {
     }
 
     return "";
+  }
+
+  private capitalizeFirstLetter(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   stringEncodingMap: Record<string, string> = {

@@ -200,11 +200,10 @@ export class PyGenerator implements CodeGenerator {
   }
 
   private getSerializeFunctionName(field: FieldDefinition): string {
-    if (field.type === "string") {
-      const suffix = this.STRING_ENCODING_MAP[field.encoding as string];
-      if (!suffix) {
-        throw new Error(`Unknown string encoding: ${field.encoding}`);
-      }
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const suffix = field.encoding
+        ? this.STRING_ENCODING_MAP[field.encoding as string]
+        : field.type;
       return `sia.add_${suffix}`;
     }
 
@@ -237,11 +236,10 @@ export class PyGenerator implements CodeGenerator {
   }
 
   private getDeserializeFunctionName(field: FieldDefinition): string {
-    if (field.type === "string") {
-      const suffix = this.STRING_ENCODING_MAP[field.encoding as string];
-      if (!suffix) {
-        throw new Error(`Unknown string encoding: ${field.encoding}`);
-      }
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      const suffix = field.encoding
+        ? this.STRING_ENCODING_MAP[field.encoding as string]
+        : field.type;
       return `sia.read_${suffix}`;
     }
 
