@@ -68,7 +68,11 @@ export class Sorcery {
     return new Sorcery(client);
   }
 
-  private getMethod(method: string, timeout: number): Function {
+  private getMethod(
+    method: string,
+    timeout: number,
+    fee: { currency: string; amount: number },
+  ): Function {
     if (!this.methods.has(method)) {
       this.methods.set(
         method,
@@ -76,6 +80,7 @@ export class Sorcery {
           plugin: this.pluginName,
           method,
           timeout,
+          fee,
         }),
       );
     }
@@ -92,7 +97,10 @@ export class Sorcery {
   }> {
     sia.addUInt8(age);
     sia.addArray8(name, (s: Sia, v) => sia.addString8(v));
-    const method = this.getMethod("isWizard", 5000);
+    const method = this.getMethod("isWizard", 5000, {
+      currency: "TLP",
+      amount: 0,
+    });
     const response = await method.populate(sia).invoke();
     const respIsWizard = response.readBool();
     const respMessage = response.readString8();
