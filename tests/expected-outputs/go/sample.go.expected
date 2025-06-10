@@ -1,0 +1,99 @@
+package schema
+  
+  import sia "github.com/TimeleapLabs/go-sia/v2/pkg"
+  
+type Sample struct {
+  Name string `json:"name"`
+  Age int32 `json:"age"`
+  Email []string `json:"email"`
+  Tags []string `json:"tags"`
+  Test []byte `json:"test"`
+  Test64 []byte `json:"test64"`
+  Address *SampleAddress `json:"address"`
+}
+
+func (p *Sample) Sia() sia.Sia {
+  s := sia.New()
+  s.AddString8(p.Name)
+  s.AddInt32(p.Age)
+  s.AddByteArrayN(p.Test)
+  s.AddByteArray64(p.Test64)
+  s.EmbedSia(p.Address.Sia().GetSia())
+  {
+    arr := sia.NewSiaArray[string]()
+    arr.AddArray8(p.Email, func(s *sia.ArraySia[string], item string) {
+      s.AddString8(item)
+    })
+    s.EmbedSia(arr.GetSia())
+  }
+  {
+    arr := sia.NewSiaArray[string]()
+    arr.AddArray8(p.Tags, func(s *sia.ArraySia[string], item string) {
+      s.AddString8(item)
+    })
+    s.EmbedSia(arr.GetSia())
+  }
+  return s
+}
+
+func (p *Sample) FromSia(s sia.Sia) *Sample {
+  p.Name = s.ReadString8()
+  p.Age = s.ReadInt32()
+  p.Test = s.ReadByteArrayN(32)
+  p.Test64 = s.ReadByteArray64()
+  sampleaddress := SampleAddress{}
+  p.Address = sampleaddress.FromSia(s)
+  {
+    reader := sia.NewArray[string](&s)
+    p.Email = reader.ReadArray8(func(s *sia.ArraySia[string]) string {
+      return s.ReadString8()
+    })
+  }
+  {
+    reader := sia.NewArray[string](&s)
+    p.Tags = reader.ReadArray8(func(s *sia.ArraySia[string]) string {
+      return s.ReadString8()
+    })
+  }
+  return p
+}
+
+type SampleAddress struct {
+  Street string `json:"street"`
+  City string `json:"city"`
+  Zip int32 `json:"zip"`
+}
+
+func (p *SampleAddress) Sia() sia.Sia {
+  s := sia.New()
+  s.AddString8((func() string {
+    if p.Street == "" {
+      return "Default Street"
+    }
+      return p.Street
+    })())
+  s.AddString8(p.City)
+  s.AddInt32(p.Zip)
+  return s
+}
+
+func (p *SampleAddress) FromSia(s sia.Sia) *SampleAddress {
+  p.Street = s.ReadString8()
+  p.City = s.ReadString8()
+  p.Zip = s.ReadInt32()
+  return p
+}
+
+// Cannot generate plugin 'swiss.timeleap.isWizard.v1' due to lack of RPC support in the Go Sia generator.
+// You must connect to this plugin manually via RPC.
+// https://timeleap.swiss/docs/products/sia/highlevel#rpc
+
+func (p *Sample) FromSiaBytes(bytes []byte) *Sample {
+  s := sia.NewFromBytes(bytes)
+ 	return p.FromSia(s)
+}
+
+func (p *SampleAddress) FromSiaBytes(bytes []byte) *SampleAddress {
+  s := sia.NewFromBytes(bytes)
+ 	return p.FromSia(s)
+}
