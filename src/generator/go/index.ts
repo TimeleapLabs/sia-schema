@@ -247,7 +247,10 @@ export class GoGenerator implements CodeGenerator {
     }
 
     if (STRING_TYPES.includes(fieldType as StringType)) {
-      const suffix = this.getStringEncodingSuffix(field.encoding as string);
+      const suffix = field.encoding
+        ? this.getStringEncodingSuffix(field.encoding as string)
+        : this.capitalizeFirstLetter(field.type);
+
       return `Add${suffix}(${ref})`;
     }
     if (this.BYTE_TYPE_MAP[fieldType]) {
@@ -266,7 +269,11 @@ export class GoGenerator implements CodeGenerator {
     const fieldType = field.type as FieldType;
 
     if (STRING_TYPES.includes(fieldType as StringType)) {
-      return `s.Read${this.getStringEncodingSuffix(field.encoding as string)}`;
+      const suffix = field.encoding
+        ? this.getStringEncodingSuffix(field.encoding as string)
+        : this.capitalizeFirstLetter(field.type);
+
+      return `s.Read${suffix}`;
     }
     if (this.BYTE_TYPE_MAP[fieldType]) {
       return `s.Read${this.BYTE_TYPE_MAP[fieldType]}`;
@@ -335,6 +342,10 @@ export class GoGenerator implements CodeGenerator {
       return `"${field.defaultValue}"`;
     }
     return `""`;
+  }
+
+  private capitalizeFirstLetter(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   STRING_ENCODING_MAP: Record<string, string> = {
