@@ -295,11 +295,24 @@ export class TSGenerator implements CodeGenerator {
     field: FieldDefinition,
     sia = "sia",
   ): string {
-    if (STRING_TYPES.includes(field.type as StringType)) {
+    const fieldType = field.type as FieldType;
+
+    if (STRING_TYPES.includes(fieldType as StringType)) {
       if (field.encoding === "ascii") {
-        return `${sia}.addAscii`;
+        switch (fieldType) {
+          case "string8":
+            return `${sia}.addAscii8`;
+          case "string16":
+            return `${sia}.addAscii16`;
+          case "string32":
+            return `${sia}.addAscii32`;
+          case "string64":
+            return `${sia}.addAscii64`;
+          default:
+            throw new Error(`Unsupported ASCII string type: ${fieldType}`);
+        }
       } else {
-        switch (field.type) {
+        switch (fieldType) {
           case "string8":
             return `${sia}.addString8`;
           case "string16":
@@ -308,6 +321,8 @@ export class TSGenerator implements CodeGenerator {
             return `${sia}.addString32`;
           case "string64":
             return `${sia}.addString64`;
+          default:
+            throw new Error(`Unsupported string type: ${fieldType}`);
         }
       }
     }
@@ -324,11 +339,21 @@ export class TSGenerator implements CodeGenerator {
           return `${sia}.addByteArray32`;
         case "byte64":
           return `${sia}.addByteArray64`;
+        default:
+          throw new Error(`Unsupported byte type: ${fieldType}`);
       }
     }
 
-    if (NUMBER_TYPES.includes(field.type as NumberType)) {
+    if (NUMBER_TYPES.includes(fieldType as NumberType)) {
       switch (field.type) {
+        case "int8":
+          return `${sia}.addInt8`;
+        case "int16":
+          return `${sia}.addInt16`;
+        case "int32":
+          return `${sia}.addInt32`;
+        case "int64":
+          return `${sia}.addInt64`;
         case "uint8":
           return `${sia}.addUInt8`;
         case "uint16":
@@ -337,14 +362,16 @@ export class TSGenerator implements CodeGenerator {
           return `${sia}.addUInt32`;
         case "uint64":
           return `${sia}.addUInt64`;
+        default:
+          throw new Error(`Unsupported number type: ${fieldType}`);
       }
     }
 
-    if (FIELD_TYPES.includes(field.type as FieldType)) {
-      return `${sia}.add${pascalCase(field.type)}`;
+    if (FIELD_TYPES.includes(fieldType as FieldType)) {
+      return `${sia}.add${pascalCase(fieldType)}`;
     }
 
-    return `encode${pascalCase(field.type)}`;
+    return `encode${pascalCase(fieldType)}`;
   }
 
   private getSerializeFunctionArgs(field: FieldDefinition): string {
@@ -359,11 +386,24 @@ export class TSGenerator implements CodeGenerator {
     field: FieldDefinition,
     sia = "sia",
   ): string {
-    if (STRING_TYPES.includes(field.type as StringType)) {
+    const fieldType = field.type as FieldType;
+
+    if (STRING_TYPES.includes(fieldType as StringType)) {
       if (field.encoding === "ascii") {
-        return `${sia}.readAscii`;
+        switch (fieldType) {
+          case "string8":
+            return `${sia}.readAscii8`;
+          case "string16":
+            return `${sia}.readAscii16`;
+          case "string32":
+            return `${sia}.readAscii32`;
+          case "string64":
+            return `${sia}.readAscii64`;
+          default:
+            throw new Error(`Unsupported ASCII string type: ${fieldType}`);
+        }
       } else {
-        switch (field.type) {
+        switch (fieldType) {
           case "string8":
             return `${sia}.readString8`;
           case "string16":
@@ -372,6 +412,8 @@ export class TSGenerator implements CodeGenerator {
             return `${sia}.readString32`;
           case "string64":
             return `${sia}.readString64`;
+          default:
+            throw new Error(`Unsupported string type: ${fieldType}`);
         }
       }
     }
@@ -388,11 +430,21 @@ export class TSGenerator implements CodeGenerator {
           return `${sia}.readByteArray32`;
         case "byte64":
           return `${sia}.readByteArray64`;
+        default:
+          throw new Error(`Unsupported byte type: ${fieldType}`);
       }
     }
 
     if (NUMBER_TYPES.includes(field.type as NumberType)) {
       switch (field.type) {
+        case "int8":
+          return `${sia}.readInt8`;
+        case "int16":
+          return `${sia}.readInt16`;
+        case "int32":
+          return `${sia}.readInt32`;
+        case "int64":
+          return `${sia}.readInt64`;
         case "uint8":
           return `${sia}.readUInt8`;
         case "uint16":
@@ -401,16 +453,17 @@ export class TSGenerator implements CodeGenerator {
           return `${sia}.readUInt32`;
         case "uint64":
           return `${sia}.readUInt64`;
+        default:
+          throw new Error(`Unsupported number type: ${fieldType}`);
       }
     }
 
     if (FIELD_TYPES.includes(field.type as FieldType)) {
-      return `${sia}.read${pascalCase(field.type)}`;
+      return `${sia}.read${pascalCase(fieldType)}`;
     }
 
-    return `decode${pascalCase(field.type)}`;
+    return `decode${pascalCase(fieldType)}`;
   }
-
   private getDeserializeFunctionArgs(
     field: FieldDefinition,
     sia = "sia",

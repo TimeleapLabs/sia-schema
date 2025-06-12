@@ -14,7 +14,7 @@ export interface Sample {
 export function encodeSample(sia: Sia, sample: Sample): Sia {
   sia.addString8(sample.name);
   sia.addInt32(sample.age ?? 0);
-  sia.addArray8(sample.email ?? [], (s: Sia, v) => s.addAscii(v));
+  sia.addArray8(sample.email ?? [], (s: Sia, v) => s.addAscii8(v));
   sia.addArray8(sample.tags, (s: Sia, v) => s.addString8(v));
   sia.addByteArrayN(sample.test ?? new Uint8Array(0));
   sia.addByteArray64(sample.test64);
@@ -26,7 +26,7 @@ export function decodeSample(sia: Sia): Sample {
   return {
     name: sia.readString8(),
     age: sia.readInt32(),
-    email: sia.readArray8((s: Sia) => s.readAscii()),
+    email: sia.readArray8((s: Sia) => s.readAscii8()),
     tags: sia.readArray8((s: Sia) => s.readString8()),
     test: sia.readByteArrayN(32),
     test64: sia.readByteArray64(),
@@ -44,7 +44,7 @@ export function encodeSampleAddress(
   sia: Sia,
   sampleAddress: SampleAddress,
 ): Sia {
-  sia.addAscii(sampleAddress.street ?? "");
+  sia.addAscii8(sampleAddress.street ?? "");
   sia.addString8(sampleAddress.city);
   sia.addInt32(sampleAddress.zip);
   return sia;
@@ -52,7 +52,7 @@ export function encodeSampleAddress(
 
 export function decodeSampleAddress(sia: Sia): SampleAddress {
   return {
-    street: sia.readAscii(),
+    street: sia.readAscii8(),
     city: sia.readString8(),
     zip: sia.readInt32(),
   };
