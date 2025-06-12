@@ -7,7 +7,7 @@ schema Person {
 }
 
 schema Address {
-  street?  string(encoding = "ascii") = "Default Street"
+  street?  string8(encoding = "utf64") = "Default Street"
   city     string8
   zip      int32
 }
