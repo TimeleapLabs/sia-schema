@@ -8,7 +8,7 @@
     "commander": "^12.1.0"
   },
   "bin": {
-    "sia": "dist/cli.js"
+    "sia": "dist/src/cli.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.16.0",
