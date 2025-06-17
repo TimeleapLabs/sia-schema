@@ -21,7 +21,6 @@ const irAction = async (file: string, options: Options) => {
 
     if (options.output) {
       writeFileSync(options.output, JSON.stringify(result, null, 2));
-      console.log(`Output written to ${options.output}`);
       return;
     }
 

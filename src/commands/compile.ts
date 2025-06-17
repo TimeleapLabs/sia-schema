@@ -66,7 +66,6 @@ const compileAction = async (file: string, options: Options) => {
       } else {
         writeFileSync(headerPath, hpp);
         writeFileSync(sourcePath, cpp);
-        console.log(`Output written to ${headerPath} and ${sourcePath}`);
       }
 
       return;
@@ -85,7 +84,6 @@ const compileAction = async (file: string, options: Options) => {
 
     if (outputPath) {
       writeFileSync(outputPath, result);
-      console.log(`Output written to ${outputPath}`);
       return;
     }
 
