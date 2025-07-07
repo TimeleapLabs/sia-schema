@@ -300,6 +300,8 @@ export class TSGenerator implements CodeGenerator {
     if (STRING_TYPES.includes(fieldType as StringType)) {
       if (field.encoding === "ascii") {
         switch (fieldType) {
+          case "stringN":
+            return `${sia}.addAsciiN`;
           case "string8":
             return `${sia}.addAscii8`;
           case "string16":
@@ -313,6 +315,8 @@ export class TSGenerator implements CodeGenerator {
         }
       } else {
         switch (fieldType) {
+          case "stringN":
+            return `${sia}.addStringN`;
           case "string8":
             return `${sia}.addString8`;
           case "string16":
@@ -391,6 +395,8 @@ export class TSGenerator implements CodeGenerator {
     if (STRING_TYPES.includes(fieldType as StringType)) {
       if (field.encoding === "ascii") {
         switch (fieldType) {
+          case "stringN":
+            return `${sia}.readAsciiN`;
           case "string8":
             return `${sia}.readAscii8`;
           case "string16":
@@ -404,6 +410,8 @@ export class TSGenerator implements CodeGenerator {
         }
       } else {
         switch (fieldType) {
+          case "stringN":
+            return `${sia}.readStringN`;
           case "string8":
             return `${sia}.readString8`;
           case "string16":
@@ -468,7 +476,7 @@ export class TSGenerator implements CodeGenerator {
     field: FieldDefinition,
     sia = "sia",
   ): string {
-    if (field.type === "byteN") {
+    if (field.type === "byteN" || field.type === "stringN") {
       return this.getFixedLength(field);
     }
 
