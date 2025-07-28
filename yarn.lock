@@ -1088,7 +1088,7 @@ __metadata:
   peerDependencies:
     prettier: "*"
   bin:
-    sia: dist/cli.js
+    sia: dist/src/cli.js
   languageName: unknown
   linkType: soft
 
