@@ -42,7 +42,7 @@ export const sampleSiaDefinition: Definition[] = [
     fields: [
       {
         name: "street",
-        type: "string",
+        type: "string8",
         encoding: "ascii",
         optional: true,
         isArray: false,
