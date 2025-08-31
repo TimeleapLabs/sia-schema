@@ -75,7 +75,7 @@ export class TSGenerator implements CodeGenerator {
     parts.push("}\n");
 
     parts.push(
-      "  private getMethod(method: string, timeout: number, fee: { currency: string, amount: number }): Function {",
+      "  public getMethod(method: string, timeout: number, fee: { currency: string, amount: number }): Function {",
     );
     parts.push("    if (!this.methods.has(method)) {");
     parts.push("      this.methods.set(method, this.client.method({");
