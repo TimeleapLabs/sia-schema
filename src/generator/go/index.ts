@@ -221,12 +221,6 @@ export class GoGenerator implements CodeGenerator {
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  private getStringEncodingSuffix(encoding: string | undefined): string {
-    const suffix = this.STRING_ENCODING_MAP[encoding ?? "utf8"];
-    if (!suffix) throw new Error(`Unknown string encoding: ${encoding}`);
-    return suffix;
-  }
-
   private getSerializeFunctionName(
     field: FieldDefinition,
     ref: string,
@@ -234,28 +228,72 @@ export class GoGenerator implements CodeGenerator {
     const fieldType = field.type as FieldType;
 
     if (field.isArray) {
-      const itemType = this.fieldTypeToGoType(field as FieldDefinition);
+      const itemType = this.fieldTypeToGoType(field);
       const serializeFunc = this.getSerializeFunctionName(
         { type: field.type } as FieldDefinition,
         "item",
       );
-      const arrayFunc = "AddArray8";
-
-      return `${arrayFunc}(${ref}, func(s *sia.ArraySia[${itemType}], item ${itemType}) {
-        s.${serializeFunc}
-      })`;
+      return `AddArray8(${ref}, func(s *sia.ArraySia[${itemType}], item ${itemType}) {
+    s.${serializeFunc}
+  })`;
     }
 
     if (STRING_TYPES.includes(fieldType as StringType)) {
-      const suffix = this.getStringEncodingSuffix(field.encoding as string);
-      return `Add${suffix}(${ref})`;
+      switch (fieldType) {
+        case "string8":
+          return `AddString8(${ref})`;
+        case "string16":
+          return `AddString16(${ref})`;
+        case "string32":
+          return `AddString32(${ref})`;
+        case "string64":
+          return `AddString64(${ref})`;
+        default:
+          throw new Error(`Unsupported string type: ${field.type}`);
+      }
     }
-    if (this.BYTE_TYPE_MAP[fieldType]) {
-      return `Add${this.BYTE_TYPE_MAP[fieldType]}(${ref})`;
+    if (BYTE_TYPES.includes(fieldType as ByteType)) {
+      switch (fieldType) {
+        case "byteN":
+          return `AddByteArrayN(${ref})`;
+        case "byte8":
+          return `AddByteArray8(${ref})`;
+        case "byte16":
+          return `AddByteArray16(${ref})`;
+        case "byte32":
+          return `AddByteArray32(${ref})`;
+        case "byte64":
+          return `AddByteArray64(${ref})`;
+        default:
+          throw new Error(`Unsupported byte type: ${field.type}`);
+      }
     }
-    if (fieldType === "bool") return `AddBool(${ref})`;
+
+    if (fieldType === "bool") {
+      return `AddBool(${ref})`;
+    }
+
     if (NUMBER_TYPES.includes(fieldType as NumberType)) {
-      return `Add${this.NUMBER_TYPE_MAP[fieldType]}(${ref})`;
+      switch (fieldType) {
+        case "int8":
+          return `AddInt8(${ref})`;
+        case "int16":
+          return `AddInt16(${ref})`;
+        case "int32":
+          return `AddInt32(${ref})`;
+        case "int64":
+          return `AddInt64(${ref})`;
+        case "uint8":
+          return `AddUInt8(${ref})`;
+        case "uint16":
+          return `AddUInt16(${ref})`;
+        case "uint32":
+          return `AddUInt32(${ref})`;
+        case "uint64":
+          return `AddUInt64(${ref})`;
+        default:
+          throw new Error(`Unsupported string type: ${field.type}`);
+      }
     }
 
     // custom schema
@@ -266,14 +304,62 @@ export class GoGenerator implements CodeGenerator {
     const fieldType = field.type as FieldType;
 
     if (STRING_TYPES.includes(fieldType as StringType)) {
-      return `s.Read${this.getStringEncodingSuffix(field.encoding as string)}`;
+      switch (fieldType) {
+        case "string8":
+          return "s.ReadString8";
+        case "string16":
+          return "s.ReadString16";
+        case "string32":
+          return "s.ReadString32";
+        case "string64":
+          return "s.ReadString64";
+        default:
+          throw new Error(`Unsupported string type: ${field.type}`);
+      }
     }
-    if (this.BYTE_TYPE_MAP[fieldType]) {
-      return `s.Read${this.BYTE_TYPE_MAP[fieldType]}`;
+
+    if (BYTE_TYPES.includes(fieldType as ByteType)) {
+      switch (fieldType) {
+        case "byteN":
+          return "s.ReadByteArrayN";
+        case "byte8":
+          return "s.ReadByteArray8";
+        case "byte16":
+          return "s.ReadByteArray16";
+        case "byte32":
+          return "s.ReadByteArray32";
+        case "byte64":
+          return "s.ReadByteArray64";
+        default:
+          throw new Error(`Unsupported byte type: ${field.type}`);
+      }
     }
-    if (fieldType === "bool") return "s.ReadBool";
+
+    if (fieldType === "bool") {
+      return "s.ReadBool";
+    }
+
     if (NUMBER_TYPES.includes(fieldType as NumberType)) {
-      return `s.Read${this.NUMBER_TYPE_MAP[fieldType]}`;
+      switch (fieldType) {
+        case "int8":
+          return "s.ReadInt8";
+        case "int16":
+          return "s.ReadInt16";
+        case "int32":
+          return "s.ReadInt32";
+        case "int64":
+          return "s.ReadInt64";
+        case "uint8":
+          return "s.ReadUInt8";
+        case "uint16":
+          return "s.ReadUInt16";
+        case "uint32":
+          return "s.ReadUInt32";
+        case "uint64":
+          return "s.ReadUInt64";
+        default:
+          throw new Error(`Unsupported number type: ${field.type}`);
+      }
     }
 
     if (this.knownSchemas.has(fieldType)) {
@@ -316,7 +402,9 @@ export class GoGenerator implements CodeGenerator {
 
     if (defaultVal == zero) return ref;
 
-    return `(func() ${fieldType} {
+    const goFieldType = this.fieldTypeToGoType(field as FieldDefinition);
+
+    return `(func() ${goFieldType} {
     if ${ref} == ${zero} {
       return ${defaultVal}
     }
@@ -336,31 +424,4 @@ export class GoGenerator implements CodeGenerator {
     }
     return `""`;
   }
-
-  STRING_ENCODING_MAP: Record<string, string> = {
-    ascii: "String8",
-    utf8: "String8",
-    utf16: "String16",
-    utf32: "String32",
-    utf64: "String64",
-  };
-
-  BYTE_TYPE_MAP: Record<string, string> = {
-    byteN: "ByteArrayN",
-    byte8: "ByteArray8",
-    byte16: "ByteArray16",
-    byte32: "ByteArray32",
-    byte64: "ByteArray64",
-  };
-
-  NUMBER_TYPE_MAP: Record<string, string> = {
-    int8: "Int8",
-    int16: "Int16",
-    int32: "Int32",
-    int64: "Int64",
-    uint8: "UInt8",
-    uint16: "UInt16",
-    uint32: "UInt32",
-    uint64: "UInt64",
-  };
 }

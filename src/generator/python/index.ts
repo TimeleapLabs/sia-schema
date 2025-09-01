@@ -200,16 +200,25 @@ export class PyGenerator implements CodeGenerator {
   }
 
   private getSerializeFunctionName(field: FieldDefinition): string {
-    if (field.type === "string") {
-      const suffix = this.STRING_ENCODING_MAP[field.encoding as string];
-      if (!suffix) {
-        throw new Error(`Unknown string encoding: ${field.encoding}`);
-      }
-      return `sia.add_${suffix}`;
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      return `sia.add_${field.type}`;
     }
 
-    if (this.BYTE_TYPE_MAP[field.type]) {
-      return `sia.add_${this.BYTE_TYPE_MAP[field.type]}`;
+    if (BYTE_TYPES.includes(field.type as ByteType)) {
+      switch (field.type) {
+        case "byteN":
+          return "sia.add_byte_array_n";
+        case "byte8":
+          return "sia.add_byte_array8";
+        case "byte16":
+          return "sia.add_byte_array16";
+        case "byte32":
+          return "sia.add_byte_array32";
+        case "byte64":
+          return "sia.add_byte_array64";
+        default:
+          throw new Error(`Unsupported byte type: ${field.type}`);
+      }
     }
 
     if (field.type === "bool") {
@@ -237,16 +246,25 @@ export class PyGenerator implements CodeGenerator {
   }
 
   private getDeserializeFunctionName(field: FieldDefinition): string {
-    if (field.type === "string") {
-      const suffix = this.STRING_ENCODING_MAP[field.encoding as string];
-      if (!suffix) {
-        throw new Error(`Unknown string encoding: ${field.encoding}`);
-      }
-      return `sia.read_${suffix}`;
+    if (STRING_TYPES.includes(field.type as StringType)) {
+      return `sia.read_${field.type}`;
     }
 
-    if (this.BYTE_TYPE_MAP[field.type]) {
-      return `sia.read_${this.BYTE_TYPE_MAP[field.type]}`;
+    if (BYTE_TYPES.includes(field.type as ByteType)) {
+      switch (field.type) {
+        case "byteN":
+          return "sia.read_byte_array_n";
+        case "byte8":
+          return "sia.read_byte_array8";
+        case "byte16":
+          return "sia.read_byte_array16";
+        case "byte32":
+          return "sia.read_byte_array32";
+        case "byte64":
+          return "sia.read_byte_array64";
+        default:
+          throw new Error(`Unsupported byte type: ${field.type}`);
+      }
     }
 
     if (field.type === "bool") {
@@ -289,20 +307,4 @@ export class PyGenerator implements CodeGenerator {
     }
     return "None";
   }
-
-  STRING_ENCODING_MAP: Record<string, string> = {
-    ascii: "string8",
-    utf8: "string8",
-    utf16: "string16",
-    utf32: "string32",
-    utf64: "string64",
-  };
-
-  BYTE_TYPE_MAP: Record<string, string> = {
-    byteN: "byte_array_n",
-    byte8: "byte_array8",
-    byte16: "byte_array16",
-    byte32: "byte_array32",
-    byte64: "byte_array64",
-  };
 }
