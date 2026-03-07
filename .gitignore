@@ -17,6 +17,9 @@ build/
 # WASM build output
 pkg/
 
+# Stale generator output (from manual testing)
+output.*
+
 # Editor
 *.swp
 *.swo

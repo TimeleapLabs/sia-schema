@@ -1,0 +1,90 @@
+================================================================================
+Plugin with method
+================================================================================
+
+plugin foo.bar as Baz {
+  method doThing(timeout = 5000) {
+    name string8
+  } returns {
+    ok bool
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (plugin_definition
+    name: (dotted_name
+      (identifier)
+      (identifier))
+    alias: (identifier)
+    (plugin_body
+      (method_definition
+        name: (identifier)
+        (option_list
+          (option
+            key: (identifier)
+            value: (number_literal)))
+        params: (method_body
+          (field_definition
+            name: (identifier)
+            type: (type_expression
+              (identifier))))
+        returns: (method_body
+          (field_definition
+            name: (identifier)
+            type: (type_expression
+              (identifier))))))))
+
+================================================================================
+Comment
+================================================================================
+
+// This is a comment
+schema Foo {
+  // Another comment
+  name string8
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (comment)
+  (schema_definition
+    name: (identifier)
+    (schema_body
+      (comment)
+      (field_definition
+        name: (identifier)
+        type: (type_expression
+          (identifier))))))
+
+================================================================================
+Multiple definitions
+================================================================================
+
+schema A {
+  x int32
+}
+
+schema B {
+  y bool
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (schema_definition
+    name: (identifier)
+    (schema_body
+      (field_definition
+        name: (identifier)
+        type: (type_expression
+          (identifier)))))
+  (schema_definition
+    name: (identifier)
+    (schema_body
+      (field_definition
+        name: (identifier)
+        type: (type_expression
+          (identifier))))))
