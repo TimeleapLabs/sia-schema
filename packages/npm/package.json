@@ -1,0 +1,23 @@
+{
+  "name": "@timeleap/sia-schema",
+  "version": "2.0.0",
+  "description": "Sia schema compiler - generates serialization code from .sia files",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TimeleapLabs/sia-schema"
+  },
+  "bin": {
+    "sia": "bin/index.js"
+  },
+  "files": [
+    "bin/"
+  ],
+  "optionalDependencies": {
+    "@timeleap/sia-schema-linux-x64": "2.0.0",
+    "@timeleap/sia-schema-linux-arm64": "2.0.0",
+    "@timeleap/sia-schema-darwin-x64": "2.0.0",
+    "@timeleap/sia-schema-darwin-arm64": "2.0.0",
+    "@timeleap/sia-schema-win32-x64": "2.0.0"
+  }
+}
