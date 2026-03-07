@@ -158,6 +158,88 @@ pub fn completions(
                 ..Default::default()
             });
         }
+        CompletionContext::FieldOptionKey => {
+            for (key, detail) in [
+                (
+                    "encoding",
+                    "String encoding: \"ascii\" or \"utf8\" (default)",
+                ),
+                ("length", "Fixed byte length for the field"),
+                ("fromEnd", "Offset from the end of the buffer"),
+            ] {
+                items.push(CompletionItem {
+                    label: key.into(),
+                    kind: Some(CompletionItemKind::PROPERTY),
+                    detail: Some(detail.into()),
+                    insert_text: Some(format!("{} = $0", key)),
+                    insert_text_format: Some(InsertTextFormat::SNIPPET),
+                    ..Default::default()
+                });
+            }
+        }
+        CompletionContext::FieldOptionValue { ref key } => match key.as_str() {
+            "encoding" => {
+                for val in ["\"ascii\"", "\"utf8\""] {
+                    items.push(CompletionItem {
+                        label: val.into(),
+                        kind: Some(CompletionItemKind::VALUE),
+                        detail: Some("String encoding".into()),
+                        ..Default::default()
+                    });
+                }
+            }
+            "fromEnd" | "length" => {
+                items.push(CompletionItem {
+                    label: "0".into(),
+                    kind: Some(CompletionItemKind::VALUE),
+                    detail: Some(format!("Numeric value for {}", key)),
+                    insert_text: Some("${0:0}".into()),
+                    insert_text_format: Some(InsertTextFormat::SNIPPET),
+                    ..Default::default()
+                });
+            }
+            _ => {}
+        },
+        CompletionContext::MethodOptionKey => {
+            for (key, detail) in [
+                ("timeout", "Request timeout in milliseconds"),
+                ("fee", "Fee amount for the method call"),
+                ("currency", "Currency for the fee"),
+            ] {
+                items.push(CompletionItem {
+                    label: key.into(),
+                    kind: Some(CompletionItemKind::PROPERTY),
+                    detail: Some(detail.into()),
+                    insert_text: Some(format!("{} = $0", key)),
+                    insert_text_format: Some(InsertTextFormat::SNIPPET),
+                    ..Default::default()
+                });
+            }
+        }
+        CompletionContext::MethodOptionValue { ref key } => match key.as_str() {
+            "timeout" | "fee" => {
+                let default = if key == "timeout" { "5000" } else { "0" };
+                items.push(CompletionItem {
+                    label: default.into(),
+                    kind: Some(CompletionItemKind::VALUE),
+                    detail: Some(format!("Numeric value for {}", key)),
+                    insert_text: Some(format!("${{0:{}}}", default)),
+                    insert_text_format: Some(InsertTextFormat::SNIPPET),
+                    ..Default::default()
+                });
+            }
+            "currency" => {
+                for val in ["\"UNQ\"", "\"ETH\"", "\"BTC\""] {
+                    items.push(CompletionItem {
+                        label: val.into(),
+                        kind: Some(CompletionItemKind::VALUE),
+                        detail: Some("Currency identifier".into()),
+                        ..Default::default()
+                    });
+                }
+            }
+            _ => {}
+        },
     }
 
     items
@@ -476,46 +558,138 @@ enum CompletionContext {
     TopLevel,
     FieldType,
     InsidePlugin,
+    /// Inside parentheses after a field type, e.g. `string8(|)`
+    FieldOptionKey,
+    /// After `=` inside field type options, e.g. `string8(encoding = |)`
+    FieldOptionValue {
+        key: String,
+    },
+    /// Inside parentheses after a method name, e.g. `method foo(|)`
+    MethodOptionKey,
+    /// After `=` inside method options, e.g. `method foo(timeout = |)`
+    MethodOptionValue {
+        key: String,
+    },
     Unknown,
 }
 
 fn determine_context(source: &str, offset: usize) -> CompletionContext {
     let before = &source[..offset.min(source.len())];
 
-    // Count brace depth
-    let mut depth = 0i32;
+    // Count brace and paren depth
+    let mut brace_depth = 0i32;
+    let mut paren_depth = 0i32;
     let mut last_keyword = None;
     let mut in_plugin = false;
+    // Track whether we're inside a method declaration (at plugin depth + 1)
+    let mut in_method_decl = false;
+    // Track the position where the current paren group opened
+    let mut paren_open_pos = 0usize;
 
     for (i, ch) in before.char_indices() {
-        if ch == '{' {
-            depth += 1;
-            if last_keyword == Some("plugin") {
-                in_plugin = true;
+        match ch {
+            '{' => {
+                brace_depth += 1;
+                if last_keyword == Some("plugin") {
+                    in_plugin = true;
+                }
+                in_method_decl = false;
             }
-        } else if ch == '}' {
-            depth -= 1;
-            if depth == 0 {
-                in_plugin = false;
+            '}' => {
+                brace_depth -= 1;
+                if brace_depth == 0 {
+                    in_plugin = false;
+                }
             }
+            '(' => {
+                paren_depth += 1;
+                paren_open_pos = i;
+            }
+            ')' => {
+                paren_depth -= 1;
+            }
+            _ => {}
         }
 
-        // Track keywords (simple heuristic)
-        if i + 6 <= before.len() && &before[i..i + 6] == "schema" {
-            last_keyword = Some("schema");
-        } else if i + 6 <= before.len() && &before[i..i + 6] == "plugin" {
-            last_keyword = Some("plugin");
+        // Track keywords (simple heuristic: word boundary check)
+        if ch.is_ascii_alphabetic() {
+            if i + 6 <= before.len()
+                && &before[i..i + 6] == "schema"
+                && (i == 0 || !before.as_bytes()[i - 1].is_ascii_alphanumeric())
+            {
+                last_keyword = Some("schema");
+            } else if i + 6 <= before.len()
+                && &before[i..i + 6] == "plugin"
+                && (i == 0 || !before.as_bytes()[i - 1].is_ascii_alphanumeric())
+            {
+                last_keyword = Some("plugin");
+            } else if i + 6 <= before.len()
+                && &before[i..i + 6] == "method"
+                && (i == 0 || !before.as_bytes()[i - 1].is_ascii_alphanumeric())
+            {
+                in_method_decl = true;
+            }
         }
     }
 
-    if depth == 0 {
+    // If we're inside parentheses, determine if it's field options or method options
+    if paren_depth > 0 {
+        let inside_parens = &before[paren_open_pos + 1..];
+        return determine_paren_context(inside_parens, in_method_decl);
+    }
+
+    if brace_depth == 0 {
         CompletionContext::TopLevel
-    } else if in_plugin && depth == 1 {
+    } else if in_plugin && brace_depth == 1 {
         CompletionContext::InsidePlugin
-    } else if depth >= 1 {
+    } else if brace_depth >= 1 {
         CompletionContext::FieldType
     } else {
         CompletionContext::Unknown
+    }
+}
+
+/// Determine completion context when cursor is inside parentheses.
+/// `inside` is the text between the opening `(` and the cursor.
+/// `is_method` is true if the parens follow a `method` keyword.
+fn determine_paren_context(inside: &str, is_method: bool) -> CompletionContext {
+    let trimmed = inside.trim();
+
+    // Check if we're after an `=` sign (suggesting a value)
+    // Find the last `=` that isn't inside quotes
+    let mut last_eq_pos = None;
+    let mut in_string = false;
+    for (i, ch) in trimmed.char_indices() {
+        if ch == '"' {
+            in_string = !in_string;
+        } else if ch == '=' && !in_string {
+            last_eq_pos = Some(i);
+        } else if ch == ',' && !in_string {
+            // Reset after comma — we're on a new option
+            last_eq_pos = None;
+        }
+    }
+
+    if let Some(eq_pos) = last_eq_pos {
+        // We're after an `=`, extract the key name
+        let before_eq = trimmed[..eq_pos].trim();
+        // The key is the last word before `=` (after the last comma or start)
+        let key = before_eq
+            .rsplit(',')
+            .next()
+            .unwrap_or(before_eq)
+            .trim()
+            .to_string();
+
+        if is_method {
+            CompletionContext::MethodOptionValue { key }
+        } else {
+            CompletionContext::FieldOptionValue { key }
+        }
+    } else if is_method {
+        CompletionContext::MethodOptionKey
+    } else {
+        CompletionContext::FieldOptionKey
     }
 }
 
