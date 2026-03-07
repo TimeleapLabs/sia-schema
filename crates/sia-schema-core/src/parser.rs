@@ -564,7 +564,7 @@ mod tests {
         // Should have an error for the first schema (missing name)
         assert!(!result.diagnostics.is_empty());
         // But should still parse the second schema
-        assert!(result.definitions.len() >= 1);
+        assert!(!result.definitions.is_empty());
     }
 
     #[test]

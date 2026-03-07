@@ -1,18 +1,29 @@
-# Yarn
-.yarn/*
-!.yarn/releases
-!.yarn/plugins
-.pnp.*
-
-# Swap the comments on the following lines if you wish to use zero-installs
-# In that case, don't forget to run `yarn config set enableGlobalCache false`!
-# Documentation here: https://yarnpkg.com/features/caching#zero-installs
-
-dist
-
-node_modules
-
 # Rust
 target/
-*.swp
+**/*.rs.bk
 
+# Node (packages/vscode, packages/npm)
+node_modules/
+out/
+*.vsix
+
+# Python (packages/pip)
+__pycache__/
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+
+# WASM build output
+pkg/
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

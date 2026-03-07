@@ -110,8 +110,8 @@ impl<'a> GoGenerator<'a> {
         // Array fields
         for field in schema.fields.iter().filter(|f| f.is_array) {
             let go_type = self.field_type_to_go_type(field);
-            let element_type = if go_type.starts_with("[]") {
-                &go_type[2..]
+            let element_type = if let Some(stripped) = go_type.strip_prefix("[]") {
+                stripped
             } else {
                 &go_type
             };
@@ -181,8 +181,8 @@ impl<'a> GoGenerator<'a> {
         // Array fields
         for field in schema.fields.iter().filter(|f| f.is_array) {
             let go_type = self.field_type_to_go_type(field);
-            let element_type = if go_type.starts_with("[]") {
-                &go_type[2..]
+            let element_type = if let Some(stripped) = go_type.strip_prefix("[]") {
+                stripped
             } else {
                 &go_type
             };

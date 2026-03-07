@@ -11,6 +11,7 @@ pub fn generate(definitions: &[Definition]) -> String {
     gen.generate()
 }
 
+#[allow(dead_code)]
 struct TsGenerator<'a> {
     definitions: &'a [Definition],
     known_schemas: HashSet<&'a str>,
@@ -333,8 +334,6 @@ impl<'a> TsGenerator<'a> {
             "Uint8Array | Buffer".to_string()
         } else if field.field_type == "bool" {
             "boolean".to_string()
-        } else if self.known_schemas.contains(field.field_type.as_str()) {
-            field.field_type.clone()
         } else {
             field.field_type.clone()
         };

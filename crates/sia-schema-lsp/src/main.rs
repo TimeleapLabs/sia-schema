@@ -96,11 +96,8 @@ impl LanguageServer for SiaLspBackend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.on_change(
-            params.text_document.uri,
-            params.text_document.text,
-        )
-        .await;
+        self.on_change(params.text_document.uri, params.text_document.text)
+            .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -133,7 +130,11 @@ impl LanguageServer for SiaLspBackend {
         let position = params.text_document_position_params.position;
 
         if let Some(doc) = self.documents.get(uri) {
-            Ok(capabilities::hover(&doc.source, position, &doc.symbol_table))
+            Ok(capabilities::hover(
+                &doc.source,
+                position,
+                &doc.symbol_table,
+            ))
         } else {
             Ok(None)
         }

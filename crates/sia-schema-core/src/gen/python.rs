@@ -246,8 +246,7 @@ impl<'a> PyGenerator<'a> {
     fn encode_array_helper(&self, field: &FieldDefinition) -> String {
         let func = self.serialize_func_name(field);
 
-        if func.starts_with("sia.") {
-            let method = &func[4..];
+        if let Some(method) = func.strip_prefix("sia.") {
             return format!("lambda sia, v: sia.{}(v)", method);
         }
         if self.known_schemas.contains(field.field_type.as_str()) {
@@ -259,8 +258,7 @@ impl<'a> PyGenerator<'a> {
     fn decode_array_helper(&self, field: &FieldDefinition) -> String {
         let func = self.deserialize_func_name(field);
 
-        if func.starts_with("sia.") {
-            let method = &func[4..];
+        if let Some(method) = func.strip_prefix("sia.") {
             return format!("lambda sia: sia.{}()", method);
         }
         if self.known_schemas.contains(field.field_type.as_str()) {

@@ -5,6 +5,7 @@ use sia_schema_core::ir::*;
 
 /// Information about a schema symbol for LSP features.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SchemaSymbol {
     /// The schema name.
     pub name: String,
@@ -26,6 +27,7 @@ pub struct FieldSymbol {
 
 /// Information about a plugin symbol.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PluginSymbol {
     pub name: String,
     pub alias: String,
@@ -36,6 +38,7 @@ pub struct PluginSymbol {
 
 /// Information about a method.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MethodSymbol {
     pub name: String,
     pub span: Span,

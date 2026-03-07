@@ -430,7 +430,7 @@ pub fn format_document(source: &str) -> Vec<TextEdit> {
     let mut formatted = String::new();
     let mut indent = 0usize;
 
-    for (_i, line) in source.lines().enumerate() {
+    for line in source.lines() {
         let trimmed = line.trim();
 
         if trimmed.is_empty() {
@@ -519,7 +519,7 @@ fn determine_context(source: &str, offset: usize) -> CompletionContext {
     }
 }
 
-fn get_word_at_offset<'a>(source: &'a str, offset: usize) -> Option<&'a str> {
+fn get_word_at_offset(source: &str, offset: usize) -> Option<&str> {
     if offset >= source.len() {
         return None;
     }
