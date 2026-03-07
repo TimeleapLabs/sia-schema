@@ -3,6 +3,7 @@ pub mod formatter;
 pub mod gen;
 pub mod ir;
 pub mod lexer;
+pub mod linter;
 pub mod parser;
 
 use error::Diagnostic;

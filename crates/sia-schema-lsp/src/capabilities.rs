@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
 use sia_schema_core::error::{LineIndex, Severity as SiaSeverity};
-use sia_schema_core::ir::{is_custom_type, Definition};
+use sia_schema_core::ir::Definition;
 
 use crate::symbols::{self, SymbolTable};
 
@@ -36,61 +36,37 @@ pub fn to_lsp_diagnostics(
         .collect()
 }
 
-/// Generate semantic diagnostics (undefined types, duplicate schemas).
+/// Generate semantic diagnostics using the core linter.
 pub fn semantic_diagnostics(
     definitions: &[Definition],
+    source: &str,
     line_index: &LineIndex,
-    symbol_table: &SymbolTable,
 ) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
+    let lint_diags = sia_schema_core::linter::lint(definitions, source);
 
-    // Check for duplicate schema names
-    let mut seen_schemas: HashMap<&str, usize> = HashMap::new();
-    for def in definitions {
-        if let Definition::Schema(s) = def {
-            if let Some(_prev) = seen_schemas.get(s.name.as_str()) {
-                if let Some(sym) = symbol_table.schemas.get(&s.name) {
-                    let (line, col) = line_index.line_col(sym.name_span.offset);
-                    diagnostics.push(Diagnostic {
-                        range: Range {
-                            start: Position::new(line as u32, col as u32),
-                            end: Position::new(line as u32, (col + sym.name_span.length) as u32),
-                        },
-                        severity: Some(DiagnosticSeverity::ERROR),
-                        source: Some("sia-schema".into()),
-                        message: format!("Duplicate schema name: '{}'", s.name),
-                        ..Default::default()
-                    });
-                }
-            } else {
-                seen_schemas.insert(&s.name, 0);
-            }
-        }
-    }
+    lint_diags
+        .into_iter()
+        .map(|d| {
+            let (start_line, start_col) = line_index.line_col(d.span.offset);
+            let (end_line, end_col) = line_index.line_col(d.span.end());
 
-    // Check for undefined type references
-    for type_ref in &symbol_table.type_references {
-        if is_custom_type(&type_ref.type_name)
-            && !symbol_table.schemas.contains_key(&type_ref.type_name)
-        {
-            let (line, col) = line_index.line_col(type_ref.span.offset);
-            diagnostics.push(Diagnostic {
+            Diagnostic {
                 range: Range {
-                    start: Position::new(line as u32, col as u32),
-                    end: Position::new(line as u32, (col + type_ref.span.length) as u32),
+                    start: Position::new(start_line as u32, start_col as u32),
+                    end: Position::new(end_line as u32, end_col as u32),
                 },
-                severity: Some(DiagnosticSeverity::WARNING),
+                severity: Some(match d.severity {
+                    SiaSeverity::Error => DiagnosticSeverity::ERROR,
+                    SiaSeverity::Warning => DiagnosticSeverity::WARNING,
+                    SiaSeverity::Info => DiagnosticSeverity::INFORMATION,
+                }),
                 source: Some("sia-schema".into()),
-                message: format!(
-                    "Undefined type: '{}'. No schema with this name found.",
-                    type_ref.type_name
-                ),
+                message: d.message,
+                code: Some(NumberOrString::String(d.rule.to_string())),
                 ..Default::default()
-            });
-        }
-    }
-
-    diagnostics
+            }
+        })
+        .collect()
 }
 
 /// Get completion items at a given position.

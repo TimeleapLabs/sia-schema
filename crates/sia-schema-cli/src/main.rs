@@ -59,6 +59,12 @@ enum Commands {
         #[arg(short, long)]
         check: bool,
     },
+
+    /// Lint .sia files for errors and warnings
+    Check {
+        /// File or directory to check
+        path: PathBuf,
+    },
 }
 
 fn main() {
@@ -82,6 +88,9 @@ fn main() {
         }
         Commands::Fmt { path, write, check } => {
             cmd_fmt(&path, write, check);
+        }
+        Commands::Check { path } => {
+            cmd_check(&path);
         }
     }
 }
@@ -159,6 +168,81 @@ fn collect_sia_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) {
         } else if path.extension().and_then(|e| e.to_str()) == Some("sia") {
             files.push(path);
         }
+    }
+}
+
+fn cmd_check(path: &Path) {
+    let files = collect_sia_files(path);
+
+    if files.is_empty() {
+        eprintln!("No .sia files found in {}", path.display());
+        process::exit(1);
+    }
+
+    let mut total_errors = 0usize;
+    let mut total_warnings = 0usize;
+    let mut total_info = 0usize;
+
+    for file in &files {
+        let source = read_file(file);
+        let (definitions, parse_diagnostics) = sia_schema_core::parse(&source);
+        let line_index = sia_schema_core::error::LineIndex::new(&source);
+
+        // Print parse errors
+        for diag in &parse_diagnostics {
+            let (line, col) = line_index.line_col(diag.span.offset);
+            eprintln!(
+                "{}:{}:{}: {:?}: {}",
+                file.display(),
+                line + 1,
+                col + 1,
+                diag.severity,
+                diag.message
+            );
+            match diag.severity {
+                sia_schema_core::error::Severity::Error => total_errors += 1,
+                sia_schema_core::error::Severity::Warning => total_warnings += 1,
+                sia_schema_core::error::Severity::Info => total_info += 1,
+            }
+        }
+
+        // Run linter
+        let lint_diags = sia_schema_core::linter::lint(&definitions, &source);
+        for diag in &lint_diags {
+            let (line, col) = line_index.line_col(diag.span.offset);
+            let severity_label = match diag.severity {
+                sia_schema_core::error::Severity::Error => "error",
+                sia_schema_core::error::Severity::Warning => "warning",
+                sia_schema_core::error::Severity::Info => "info",
+            };
+            eprintln!(
+                "{}:{}:{}: {} [{}]: {}",
+                file.display(),
+                line + 1,
+                col + 1,
+                severity_label,
+                diag.rule,
+                diag.message
+            );
+            match diag.severity {
+                sia_schema_core::error::Severity::Error => total_errors += 1,
+                sia_schema_core::error::Severity::Warning => total_warnings += 1,
+                sia_schema_core::error::Severity::Info => total_info += 1,
+            }
+        }
+    }
+
+    let total = total_errors + total_warnings + total_info;
+    if total > 0 {
+        eprintln!();
+        eprintln!(
+            "Found {} issue(s): {} error(s), {} warning(s), {} info",
+            total, total_errors, total_warnings, total_info
+        );
+    }
+
+    if total_errors > 0 {
+        process::exit(1);
     }
 }
 

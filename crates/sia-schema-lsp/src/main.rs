@@ -39,8 +39,8 @@ impl SiaLspBackend {
         let mut lsp_diags = capabilities::to_lsp_diagnostics(&parse_diagnostics, &line_index);
         lsp_diags.extend(capabilities::semantic_diagnostics(
             &definitions,
+            &source,
             &line_index,
-            &symbol_table,
         ));
 
         self.client
