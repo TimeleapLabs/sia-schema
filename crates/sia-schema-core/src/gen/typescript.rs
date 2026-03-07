@@ -352,10 +352,12 @@ impl<'a> TsGenerator<'a> {
         let encoding = field.options.get("encoding").and_then(|v| v.as_str());
 
         if field.field_type == "string" {
-            if encoding == Some("ascii") {
-                return (format!("{}.addAscii", sia), String::new());
-            }
-            panic!("Unknown encoding for string type");
+            let enc = encoding.unwrap_or("utf8");
+            let suffix = match enc {
+                "ascii" => "Ascii",
+                _ => "String8",
+            };
+            return (format!("{}.add{}", sia, suffix), String::new());
         }
 
         // Explicit mapping for uint types (preserve casing)
@@ -386,10 +388,12 @@ impl<'a> TsGenerator<'a> {
         let encoding = field.options.get("encoding").and_then(|v| v.as_str());
 
         if field.field_type == "string" {
-            if encoding == Some("ascii") {
-                return (format!("{}.readAscii", sia), String::new());
-            }
-            panic!("Unknown encoding for string type");
+            let enc = encoding.unwrap_or("utf8");
+            let suffix = match enc {
+                "ascii" => "Ascii",
+                _ => "String8",
+            };
+            return (format!("{}.read{}", sia, suffix), String::new());
         }
 
         let func = match field.field_type.as_str() {
