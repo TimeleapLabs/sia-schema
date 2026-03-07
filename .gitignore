@@ -12,3 +12,7 @@ dist
 
 node_modules
 
+# Rust
+target/
+*.swp
+
