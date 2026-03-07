@@ -1,0 +1,71 @@
+from sia import Sia
+
+from typing import List
+
+class Sample():
+    def __init__(self,
+        name: str,
+        tags: List[str],
+        test64: bytes,
+        address: "SampleAddress",
+        age: int = None,
+        email: List[str] = None,
+        test: bytes = None,
+    ):
+        self.name = name
+        self.age = age
+        self.email = email
+        self.tags = tags
+        self.test = test
+        self.test64 = test64
+        self.address = address
+
+    def encode(self, sia: Sia) -> Sia:
+        sia.add_string8(self.name)
+        sia.add_int32(self.age)
+        sia.add_array8(self.email, lambda sia, v: sia.add_string8(v))
+        sia.add_array8(self.tags, lambda sia, v: sia.add_string8(v))
+        sia.add_byte_array_n(self.test)
+        sia.add_byte_array64(self.test64)
+        self.address.encode(sia)
+        return sia
+
+    @classmethod
+    def decode(cls, sia: Sia) -> "Sample":
+        return cls(
+            name=sia.read_string8(),
+            age=sia.read_int32(),
+            email=sia.read_array8(lambda sia: sia.read_string8()),
+            tags=sia.read_array8(lambda sia: sia.read_string8()),
+            test=sia.read_byte_array_n(32),
+            test64=sia.read_byte_array64(),
+            address=SampleAddress.decode(sia),
+        )
+
+class SampleAddress():
+    def __init__(self,
+        city: str,
+        zip: int,
+        street: str = "Default Street",
+    ):
+        self.street = street
+        self.city = city
+        self.zip = zip
+
+    def encode(self, sia: Sia) -> Sia:
+        sia.add_string8(self.street)
+        sia.add_string8(self.city)
+        sia.add_int32(self.zip)
+        return sia
+
+    @classmethod
+    def decode(cls, sia: Sia) -> "SampleAddress":
+        return cls(
+            street=sia.read_string8(),
+            city=sia.read_string8(),
+            zip=sia.read_int32(),
+        )
+
+# Cannot generate plugin 'swiss.timeleap.isWizard.v1' due to lack of RPC support in the Python Sia generator.
+# You must connect to this plugin manually via RPC. Please check the tutorial below:
+# https://timeleap.swiss/docs/products/sia/highlevel#rpc

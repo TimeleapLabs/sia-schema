@@ -1,0 +1,33 @@
+#pragma once
+
+#include <sia/sia.hpp>
+#include <vector>
+#include <string>
+#include <sia/array.hpp>
+#include <memory>
+
+struct Sample;
+
+struct SampleAddress;
+
+struct Sample {
+  std::string name;
+  int32_t age;
+  std::vector<std::string> email;
+  std::vector<std::string> tags;
+  std::vector<uint8_t> test;
+  std::vector<uint8_t> test64;
+  std::shared_ptr<SampleAddress> address;
+}; 
+
+std::shared_ptr<sia::Sia> encodeSample(const Sample& sample);
+Sample decodeSample(std::shared_ptr<sia::Sia> sia);
+
+struct SampleAddress {
+  std::string street = "Default Street";
+  std::string city;
+  int32_t zip;
+}; 
+
+std::shared_ptr<sia::Sia> encodeSampleAddress(const SampleAddress& sampleAddress);
+SampleAddress decodeSampleAddress(std::shared_ptr<sia::Sia> sia);

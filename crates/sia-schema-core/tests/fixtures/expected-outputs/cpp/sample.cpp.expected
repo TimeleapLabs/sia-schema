@@ -1,0 +1,50 @@
+#include "sample.hpp"
+
+std::shared_ptr<sia::Sia> encodeSample(const Sample& sample) {
+  auto sia = sia::New();
+  sia->AddString8(sample.name);
+  sia->AddInt32(sample.age);
+  sia::AddArray8<std::string>(sia, sample.email, [&](auto self, const std::string& v) { self->AddString8(v); });
+  sia::AddArray8<std::string>(sia, sample.tags, [&](auto self, const std::string& v) { self->AddString8(v); });
+  sia->AddByteArrayN(sample.test);
+  sia->AddByteArray64(sample.test64);
+  if (sample.address) {
+    auto embedded = encodeSampleAddress(*sample.address);
+    sia->EmbedSia(embedded);
+  } else {
+    sia->EmbedSia(sia::New());
+  };
+  return sia;
+}
+
+Sample decodeSample(std::shared_ptr<sia::Sia> sia) {
+  Sample result;
+  result.name = sia->ReadString8();
+  result.age = sia->ReadInt32();
+  result.email = sia::ReadArray8<std::string>(sia, [&](auto self) -> std::string { return self->ReadString8(); });
+  result.tags = sia::ReadArray8<std::string>(sia, [&](auto self) -> std::string { return self->ReadString8(); });
+  result.test = sia->ReadByteArrayN(32);
+  result.test64 = sia->ReadByteArray64();
+  result.address = std::make_shared<SampleAddress>(decodeSampleAddress(sia));
+  return result;
+}
+
+std::shared_ptr<sia::Sia> encodeSampleAddress(const SampleAddress& sampleAddress) {
+  auto sia = sia::New();
+  sia->AddString8(sampleAddress.street);
+  sia->AddString8(sampleAddress.city);
+  sia->AddInt32(sampleAddress.zip);
+  return sia;
+}
+
+SampleAddress decodeSampleAddress(std::shared_ptr<sia::Sia> sia) {
+  SampleAddress result;
+  result.street = sia->ReadString8();
+  result.city = sia->ReadString8();
+  result.zip = sia->ReadInt32();
+  return result;
+}
+
+// Plugin 'swiss.timeleap.isWizard.v1' is not supported in C++ generator.
+// RPC support must be implemented manually.
+// See: https://timeleap.swiss/docs/products/sia/highlevel#rpc
