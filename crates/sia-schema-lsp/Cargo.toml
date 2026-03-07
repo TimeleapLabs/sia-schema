@@ -1,0 +1,17 @@
+[package]
+name = "sia-schema-lsp"
+version = "0.1.0"
+edition = "2021"
+description = "Sia schema language server"
+license = "MIT"
+
+[[bin]]
+name = "sia-lsp"
+path = "src/main.rs"
+
+[dependencies]
+sia-schema-core = { path = "../sia-schema-core" }
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+serde_json = { workspace = true }
+dashmap = "6"

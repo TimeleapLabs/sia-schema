@@ -1,0 +1,15 @@
+[package]
+name = "sia-schema-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Sia schema compiler CLI"
+license = "MIT"
+
+[[bin]]
+name = "sia"
+path = "src/main.rs"
+
+[dependencies]
+sia-schema-core = { path = "../sia-schema-core" }
+clap = { version = "4", features = ["derive"] }
+serde_json = { workspace = true }

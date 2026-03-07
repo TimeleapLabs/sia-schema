@@ -1,0 +1,15 @@
+[package]
+name = "sia-schema-core"
+version = "0.1.0"
+edition = "2021"
+description = "Sia schema compiler core library: lexer, parser, IR, and code generators"
+license = "MIT"
+
+[dependencies]
+logos = "0.14"
+serde = { workspace = true }
+serde_json = { workspace = true }
+heck = "0.5"
+
+[dev-dependencies]
+insta = "1"
