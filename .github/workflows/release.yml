@@ -1,0 +1,197 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: sia-linux-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: sia-linux-arm64
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: sia-darwin-x64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: sia-darwin-arm64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact: sia-win32-x64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (native)
+        if: ${{ !matrix.cross }}
+        run: |
+          cargo build --release --target ${{ matrix.target }} -p sia-schema-cli
+          cargo build --release --target ${{ matrix.target }} -p sia-schema-lsp
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: |
+          cross build --release --target ${{ matrix.target }} -p sia-schema-cli
+          cross build --release --target ${{ matrix.target }} -p sia-schema-lsp
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist/bin
+          cp target/${{ matrix.target }}/release/sia dist/bin/
+          cp target/${{ matrix.target }}/release/sia-lsp dist/bin/
+          tar -czf ${{ matrix.artifact }}.tar.gz -C dist .
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p dist/bin
+          cp target/${{ matrix.target }}/release/sia.exe dist/bin/
+          cp target/${{ matrix.target }}/release/sia-lsp.exe dist/bin/
+          Compress-Archive -Path dist/* -DestinationPath ${{ matrix.artifact }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.*
+
+  build-wasm:
+    name: Build WASM
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Build WASM
+        run: wasm-pack build crates/sia-schema-wasm --target bundler --out-dir ../../pkg
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
+
+  release:
+    name: Create Release
+    needs: [build, build-wasm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/sia-linux-x64/*
+            artifacts/sia-linux-arm64/*
+            artifacts/sia-darwin-x64/*
+            artifacts/sia-darwin-arm64/*
+            artifacts/sia-win32-x64/*
+          generate_release_notes: true
+
+  publish-crates:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish sia-schema-core
+        run: cargo publish -p sia-schema-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Publish sia-schema-cli
+        run: cargo publish -p sia-schema-cli --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish-npm:
+    name: Publish to npm
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare platform packages
+        run: |
+          for platform in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+            mkdir -p "npm-${platform}/bin"
+            if [ -f "artifacts/sia-${platform}/sia-${platform}.tar.gz" ]; then
+              tar -xzf "artifacts/sia-${platform}/sia-${platform}.tar.gz" -C "npm-${platform}/"
+            fi
+            cat > "npm-${platform}/package.json" << EOF
+          {
+            "name": "@timeleap/sia-schema-${platform}",
+            "version": "${{ github.ref_name }}",
+            "os": ["$(echo ${platform} | cut -d- -f1)"],
+            "cpu": ["$(echo ${platform} | cut -d- -f2)"]
+          }
+          EOF
+            cd "npm-${platform}" && npm publish --access public || true && cd ..
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish wrapper package
+        run: cd packages/npm && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and publish
+        run: |
+          pip install build twine
+          cd packages/pip
+          python -m build
+          twine upload dist/*
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
