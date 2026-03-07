@@ -1,0 +1,66 @@
+{
+  "name": "sia-schema",
+  "displayName": "Sia Schema",
+  "description": "Language support for Sia schema files (.sia) with LSP",
+  "version": "0.1.0",
+  "publisher": "timeleap",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TimeleapLabs/sia-schema"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:sia"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "sia",
+        "aliases": [
+          "Sia Schema",
+          "sia"
+        ],
+        "extensions": [
+          ".sia"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "sia",
+        "scopeName": "source.sia",
+        "path": "./syntaxes/sia.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Sia Schema",
+      "properties": {
+        "sia-schema.lsp.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the sia-lsp binary. If empty, uses the bundled or PATH version."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}
