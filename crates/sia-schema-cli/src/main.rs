@@ -45,6 +45,20 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Format .sia files
+    Fmt {
+        /// File or directory to format (formats all .sia files in a directory)
+        path: PathBuf,
+
+        /// Format files in-place (default: print to stdout)
+        #[arg(short, long)]
+        write: bool,
+
+        /// Check if files are formatted (exit 1 if not)
+        #[arg(short, long)]
+        check: bool,
+    },
 }
 
 fn main() {
@@ -65,6 +79,85 @@ fn main() {
             output,
         } => {
             cmd_ir(&file, string, output.as_deref());
+        }
+        Commands::Fmt { path, write, check } => {
+            cmd_fmt(&path, write, check);
+        }
+    }
+}
+
+fn cmd_fmt(path: &Path, write: bool, check: bool) {
+    let files = collect_sia_files(path);
+
+    if files.is_empty() {
+        eprintln!("No .sia files found in {}", path.display());
+        process::exit(1);
+    }
+
+    let mut unformatted_count = 0;
+
+    for file in &files {
+        let source = read_file(file);
+        let formatted = sia_schema_core::formatter::format(&source);
+
+        if check {
+            if source != formatted {
+                eprintln!("Would reformat: {}", file.display());
+                unformatted_count += 1;
+            }
+        } else if write {
+            if source != formatted {
+                fs::write(file, &formatted).unwrap_or_else(|e| {
+                    eprintln!("Error writing {}: {}", file.display(), e);
+                    process::exit(1);
+                });
+                eprintln!("Formatted: {}", file.display());
+            }
+        } else {
+            // Print to stdout (only useful for single files)
+            print!("{}", formatted);
+        }
+    }
+
+    if check && unformatted_count > 0 {
+        eprintln!("{} file(s) would be reformatted", unformatted_count);
+        process::exit(1);
+    }
+}
+
+fn collect_sia_files(path: &Path) -> Vec<PathBuf> {
+    if path.is_file() {
+        return vec![path.to_path_buf()];
+    }
+
+    if path.is_dir() {
+        let mut files = Vec::new();
+        collect_sia_files_recursive(path, &mut files);
+        files.sort();
+        return files;
+    }
+
+    Vec::new()
+}
+
+fn collect_sia_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            // Skip hidden directories and common non-source dirs
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if name.starts_with('.') || name == "node_modules" || name == "target" {
+                    continue;
+                }
+            }
+            collect_sia_files_recursive(&path, files);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("sia") {
+            files.push(path);
         }
     }
 }

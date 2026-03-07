@@ -506,39 +506,12 @@ pub fn rename(
     })
 }
 
-/// Format a .sia document.
+/// Format a .sia document using the core formatter.
 pub fn format_document(source: &str) -> Vec<TextEdit> {
-    let line_index = LineIndex::new(source);
-    let mut formatted = String::new();
-    let mut indent = 0usize;
-
-    for line in source.lines() {
-        let trimmed = line.trim();
-
-        if trimmed.is_empty() {
-            formatted.push('\n');
-            continue;
-        }
-
-        // Decrease indent for closing braces
-        if trimmed.starts_with('}') {
-            indent = indent.saturating_sub(1);
-        }
-
-        // Apply indent
-        for _ in 0..indent {
-            formatted.push_str("  ");
-        }
-        formatted.push_str(trimmed);
-        formatted.push('\n');
-
-        // Increase indent for opening braces
-        if trimmed.ends_with('{') {
-            indent += 1;
-        }
-    }
+    let formatted = sia_schema_core::formatter::format(source);
 
     // Return a single edit replacing the entire document
+    let line_index = LineIndex::new(source);
     let last_line = line_index.line_count().saturating_sub(1);
     let last_col = source.lines().last().map(|l| l.len()).unwrap_or(0);
 

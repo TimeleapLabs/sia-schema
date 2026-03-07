@@ -1,4 +1,5 @@
 pub mod error;
+pub mod formatter;
 pub mod gen;
 pub mod ir;
 pub mod lexer;
