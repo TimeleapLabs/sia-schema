@@ -447,9 +447,10 @@ fn determine_context(source: &str, offset: usize) -> CompletionContext {
         let line_before_cursor = before[current_line_start..].trim_start();
         let word_count = line_before_cursor.split_whitespace().count();
 
-        if word_count <= 1 {
-            // No words yet or typing the first word — this is the field name position.
-            // A field name with `?` suffix (e.g. `age?`) still counts as one word.
+        if word_count == 0
+            || (word_count == 1 && !line_before_cursor.ends_with(|c: char| c.is_whitespace()))
+        {
+            // No words yet or still typing the first word — field name position.
             CompletionContext::FieldName
         } else {
             // At least one word already (the field name) — this is the type position.
