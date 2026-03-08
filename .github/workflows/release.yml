@@ -161,22 +161,17 @@ jobs:
 
       - name: Build (native)
         if: ${{ !matrix.cross }}
-        run: |
-          cargo build --release --target ${{ matrix.target }} -p sia-schema-cli
-          cargo build --release --target ${{ matrix.target }} -p sia-schema-lsp
+        run: cargo build --release --target ${{ matrix.target }} -p sia-schema-cli
 
       - name: Build (cross)
         if: matrix.cross
-        run: |
-          cross build --release --target ${{ matrix.target }} -p sia-schema-cli
-          cross build --release --target ${{ matrix.target }} -p sia-schema-lsp
+        run: cross build --release --target ${{ matrix.target }} -p sia-schema-cli
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
         run: |
           mkdir -p dist/bin
           cp target/${{ matrix.target }}/release/sia dist/bin/
-          cp target/${{ matrix.target }}/release/sia-lsp dist/bin/
           tar -czf ${{ matrix.artifact }}.tar.gz -C dist .
 
       - name: Package (Windows)
@@ -185,7 +180,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist/bin
           Copy-Item target/${{ matrix.target }}/release/sia.exe dist/bin/
-          Copy-Item target/${{ matrix.target }}/release/sia-lsp.exe dist/bin/
           Compress-Archive -Path dist/* -DestinationPath ${{ matrix.artifact }}.zip
 
       - name: Upload build artifact
@@ -202,10 +196,8 @@ jobs:
           mkdir -p npm-pkg/bin
           if [ "${{ runner.os }}" = "Windows" ]; then
             cp target/${{ matrix.target }}/release/sia.exe npm-pkg/bin/
-            cp target/${{ matrix.target }}/release/sia-lsp.exe npm-pkg/bin/
           else
             cp target/${{ matrix.target }}/release/sia npm-pkg/bin/
-            cp target/${{ matrix.target }}/release/sia-lsp npm-pkg/bin/
           fi
 
           cat > npm-pkg/package.json <<EOF
