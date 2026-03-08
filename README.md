@@ -120,7 +120,7 @@ Install the **Sia Schema** extension from the `packages/vscode/` directory (or f
 
 ### Neovim
 
-The project includes a Tree-sitter grammar (`packages/tree-sitter-sia/`) and an LSP server (`sia-lsp`). See the `packages/tree-sitter-sia/` directory for setup instructions.
+The project includes a Tree-sitter grammar (`packages/tree-sitter-sia/`) and a built-in LSP server (`sia lsp`). See the `packages/tree-sitter-sia/` directory for setup instructions.
 
 Requirements: Neovim 0.11+, `nvim-treesitter`, Mason (optional).
 
@@ -141,7 +141,7 @@ Requirements: Neovim 0.11+, `nvim-treesitter`, Mason (optional).
 crates/
   sia-schema-core/     Core library: lexer, parser, IR, generators, formatter, linter
   sia-schema-cli/      CLI binary (sia)
-  sia-schema-lsp/      LSP server (sia-lsp)
+  sia-schema-lsp/      LSP server library (used by `sia lsp` subcommand)
   sia-schema-wasm/     WASM bindings
 packages/
   npm/                 npm wrapper package (@timeleap/sia-schema)
