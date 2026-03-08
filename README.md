@@ -37,7 +37,7 @@ Pre-built binaries for Linux (x64, arm64), macOS (x64, arm64), and Windows (x64)
 Sia is a fast serialization library designed for scenarios where performance is critical, such as real-time or distributed systems. However, the library's API is low-level:
 
 ```javascript
-new Sia().addString8("Andrey").addUInt32(25).addAscii("andrey@sia.com").content;
+new Sia().addString8("Alice").addUInt32(30).addAscii("alice@example.com").content;
 ```
 
 This gets unwieldy fast with nested types, arrays, and optional fields. The schema compiler generates all the boilerplate for you from a simple, declarative schema definition.
