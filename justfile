@@ -54,14 +54,22 @@ wasm:
 vscode:
     cd packages/vscode && npm install && npm run compile
 
-# Install LSP to PATH, compile extension, launch Extension Development Host
+# Install sia binary to PATH from source
+install:
+    cargo install --path crates/sia-schema-cli
+
+# Install sia binary, compile extension, launch Extension Development Host
 vscode-dev: vscode
-    cargo install --path crates/sia-schema-lsp
+    cargo install --path crates/sia-schema-cli
     code --extensionDevelopmentPath="$(pwd)/packages/vscode" "$(pwd)"
 
 # Package VS Code extension as .vsix
 vscode-package: vscode
     cd packages/vscode && npx @vscode/vsce package
+
+# Package and install VS Code extension locally
+vscode-install: vscode-package
+    code --install-extension packages/vscode/sia-schema-2.0.0.vsix
 
 # Everything: full check + grammar rebuild
 all: check grammar
