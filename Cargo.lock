@@ -879,6 +879,8 @@ dependencies = [
  "clap",
  "serde_json",
  "sia-schema-core",
+ "sia-schema-lsp",
+ "tokio",
 ]
 
 [[package]]

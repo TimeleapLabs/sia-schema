@@ -65,6 +65,9 @@ enum Commands {
         /// File or directory to check
         path: PathBuf,
     },
+
+    /// Start the Language Server Protocol (LSP) server
+    Lsp,
 }
 
 fn main() {
@@ -91,6 +94,10 @@ fn main() {
         }
         Commands::Check { path } => {
             cmd_check(&path);
+        }
+        Commands::Lsp => {
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+            rt.block_on(sia_schema_lsp::run());
         }
     }
 }

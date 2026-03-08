@@ -5,9 +5,9 @@ edition = "2021"
 description = "Sia schema language server"
 license = "MIT"
 
-[[bin]]
-name = "sia-lsp"
-path = "src/main.rs"
+[lib]
+name = "sia_schema_lsp"
+path = "src/lib.rs"
 
 [dependencies]
 sia-schema-core = { path = "../sia-schema-core" }

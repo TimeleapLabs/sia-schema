@@ -223,8 +223,8 @@ impl LanguageServer for SiaLspBackend {
     }
 }
 
-#[tokio::main]
-async fn main() {
+/// Run the LSP server on stdin/stdout.
+pub async fn run() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
