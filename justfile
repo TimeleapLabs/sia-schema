@@ -50,5 +50,9 @@ grammar: grammar-generate grammar-test grammar-nvim
 wasm:
     wasm-pack build crates/sia-schema-wasm --target web
 
+# Build VS Code extension
+vscode:
+    cd packages/vscode && npm install && npm run compile
+
 # Everything: full check + grammar rebuild
 all: check grammar
