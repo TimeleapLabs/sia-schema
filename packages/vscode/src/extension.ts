@@ -9,7 +9,7 @@ import {
 
 let client: LanguageClient;
 
-function findSiaLspBinary(context: ExtensionContext): string {
+function findSiaBinary(): string {
   // 1. Check user configuration
   const config = workspace.getConfiguration("sia-schema");
   const configPath = config.get<string>("lsp.path");
@@ -17,33 +17,41 @@ function findSiaLspBinary(context: ExtensionContext): string {
     return configPath;
   }
 
-  // 2. Check bundled binary in extension
+  // 2. Try to find sia from the npm platform package
   const platform = process.platform;
   const arch = process.arch;
-  const binaryName = platform === "win32" ? "sia-lsp.exe" : "sia-lsp";
-  const bundledPath = path.join(
-    context.extensionPath,
-    "bin",
-    `${platform}-${arch}`,
-    binaryName,
-  );
+  const key = `${platform}-${arch}`;
+  const PLATFORM_PACKAGES: Record<string, string> = {
+    "linux-x64": "@timeleap/sia-schema-linux-x64",
+    "linux-arm64": "@timeleap/sia-schema-linux-arm64",
+    "darwin-x64": "@timeleap/sia-schema-darwin-x64",
+    "darwin-arm64": "@timeleap/sia-schema-darwin-arm64",
+    "win32-x64": "@timeleap/sia-schema-win32-x64",
+  };
 
-  try {
-    require("fs").accessSync(bundledPath);
-    return bundledPath;
-  } catch {
-    // Fall through to PATH
+  const pkg = PLATFORM_PACKAGES[key];
+  if (pkg) {
+    try {
+      const pkgDir = path.dirname(require.resolve(`${pkg}/package.json`));
+      const binaryName = platform === "win32" ? "sia.exe" : "sia";
+      const binaryPath = path.join(pkgDir, "bin", binaryName);
+      require("fs").accessSync(binaryPath);
+      return binaryPath;
+    } catch {
+      // Fall through to PATH
+    }
   }
 
   // 3. Fall back to PATH
-  return "sia-lsp";
+  return "sia";
 }
 
-export function activate(context: ExtensionContext) {
-  const serverPath = findSiaLspBinary(context);
+export function activate(_context: ExtensionContext) {
+  const siaBinary = findSiaBinary();
 
   const serverOptions: ServerOptions = {
-    command: serverPath,
+    command: siaBinary,
+    args: ["lsp"],
     transport: TransportKind.stdio,
   };
 

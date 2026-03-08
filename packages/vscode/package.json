@@ -45,7 +45,7 @@
         "sia-schema.lsp.path": {
           "type": "string",
           "default": "",
-          "description": "Path to the sia-lsp binary. If empty, uses the bundled or PATH version."
+          "description": "Path to the sia binary for the LSP server. If empty, resolves from npm packages or PATH."
         }
       }
     },
