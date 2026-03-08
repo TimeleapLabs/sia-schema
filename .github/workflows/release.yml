@@ -1,9 +1,16 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -12,17 +19,103 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  bump-version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine new version
+        id: bump
+        run: |
+          # Get the latest version tag, default to 0.0.0 if none exists
+          LATEST=$(git tag --list 'v*' --sort=-version:refname | head -n1 | sed 's/^v//')
+          if [ -z "$LATEST" ]; then
+            LATEST="0.0.0"
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST"
+
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Bumping to ${VERSION}"
+
+      - name: Update versions in Cargo.toml files
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+
+          # Update workspace member crate versions
+          for crate in sia-schema-core sia-schema-cli sia-schema-lsp sia-schema-wasm; do
+            sed -i "0,/^version = .*/s//version = \"${VERSION}\"/" "crates/${crate}/Cargo.toml"
+          done
+
+          # Update inter-crate dependency versions
+          sed -i "s/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"[^\"]*\"/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"${VERSION}\"/" crates/sia-schema-cli/Cargo.toml
+          sed -i "s/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"[^\"]*\"/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"${VERSION}\"/" crates/sia-schema-lsp/Cargo.toml
+          sed -i "s/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"[^\"]*\"/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"${VERSION}\"/" crates/sia-schema-wasm/Cargo.toml
+
+          # Update pyproject.toml
+          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
+
+          # Update VS Code extension version
+          cd packages/vscode
+          npm version "${VERSION}" --no-git-tag-version
+          cd ../..
+
+          # Update npm wrapper package version + optionalDependencies
+          cd packages/npm
+          npm version "${VERSION}" --no-git-tag-version
+          node -e "
+            const pkg = require('./package.json');
+            for (const dep of Object.keys(pkg.optionalDependencies || {})) {
+              pkg.optionalDependencies[dep] = '${VERSION}';
+            }
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          cd ../..
+
+      - name: Verify Cargo.lock is up to date
+        run: cargo check --workspace
+
+      - name: Commit and tag
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+          TAG="${{ steps.bump.outputs.tag }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "release: v${VERSION}"
+          git tag "${TAG}"
+          git push origin HEAD "${TAG}"
+
   test:
     name: Test
+    needs: bump-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --workspace
 
   build:
     name: Build (${{ matrix.target }})
-    needs: test
+    needs: [bump-version, test]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -30,22 +123,34 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: sia-linux-x64
+            npm-os: linux
+            npm-cpu: x64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: sia-linux-arm64
+            npm-os: linux
+            npm-cpu: arm64
             cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
             artifact: sia-darwin-x64
+            npm-os: darwin
+            npm-cpu: x64
           - target: aarch64-apple-darwin
             os: macos-latest
             artifact: sia-darwin-arm64
+            npm-os: darwin
+            npm-cpu: arm64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: sia-win32-x64
+            npm-os: win32
+            npm-cpu: x64
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -76,24 +181,124 @@ jobs:
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          mkdir -p dist/bin
-          cp target/${{ matrix.target }}/release/sia.exe dist/bin/
-          cp target/${{ matrix.target }}/release/sia-lsp.exe dist/bin/
+          New-Item -ItemType Directory -Force -Path dist/bin
+          Copy-Item target/${{ matrix.target }}/release/sia.exe dist/bin/
+          Copy-Item target/${{ matrix.target }}/release/sia-lsp.exe dist/bin/
           Compress-Archive -Path dist/* -DestinationPath ${{ matrix.artifact }}.zip
 
-      - name: Upload artifact
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.*
 
-  build-wasm:
-    name: Build WASM
-    needs: test
+      - name: Prepare npm platform package
+        shell: bash
+        run: |
+          VERSION="${{ needs.bump-version.outputs.version }}"
+
+          mkdir -p npm-pkg/bin
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp target/${{ matrix.target }}/release/sia.exe npm-pkg/bin/
+            cp target/${{ matrix.target }}/release/sia-lsp.exe npm-pkg/bin/
+          else
+            cp target/${{ matrix.target }}/release/sia npm-pkg/bin/
+            cp target/${{ matrix.target }}/release/sia-lsp npm-pkg/bin/
+          fi
+
+          cat > npm-pkg/package.json <<EOF
+          {
+            "name": "@timeleap/sia-schema-${{ matrix.npm-os }}-${{ matrix.npm-cpu }}",
+            "version": "${VERSION}",
+            "description": "Sia schema compiler binary for ${{ matrix.npm-os }}-${{ matrix.npm-cpu }}",
+            "license": "MIT",
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/TimeleapLabs/sia-schema"
+            },
+            "os": ["${{ matrix.npm-os }}"],
+            "cpu": ["${{ matrix.npm-cpu }}"],
+            "files": ["bin/"]
+          }
+          EOF
+
+      - name: Upload npm platform package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-${{ matrix.npm-os }}-${{ matrix.npm-cpu }}
+          path: npm-pkg/
+
+  build-pypi:
+    name: Build PyPI (${{ matrix.target }})
+    needs: [bump-version, test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
+
+      - name: Upload PyPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypi-${{ matrix.target }}
+          path: dist/*.whl
+
+  build-pypi-sdist:
+    name: Build PyPI sdist
+    needs: [bump-version, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypi-sdist
+          path: dist/*.tar.gz
+
+  build-wasm:
+    name: Build WASM
+    needs: [bump-version, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -107,10 +312,12 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build, build-wasm]
+    needs: [bump-version, build, build-wasm]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts/
@@ -118,6 +325,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.bump-version.outputs.tag }}
           files: |
             artifacts/sia-linux-x64/*
             artifacts/sia-linux-arm64/*
@@ -128,22 +336,28 @@ jobs:
 
   publish-crates:
     name: Publish to crates.io
-    needs: release
+    needs: [bump-version, release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Publish sia-schema-core
         run: cargo publish -p sia-schema-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Wait for crates.io index
+        run: sleep 30
       - name: Publish sia-schema-cli
         run: cargo publish -p sia-schema-cli --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   publish-npm:
     name: Publish to npm
-    needs: [build, release]
+    needs: [bump-version, build, release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -152,46 +366,39 @@ jobs:
         with:
           path: artifacts/
 
-      - name: Prepare platform packages
+      - name: Publish platform packages
         run: |
           for platform in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
-            mkdir -p "npm-${platform}/bin"
-            if [ -f "artifacts/sia-${platform}/sia-${platform}.tar.gz" ]; then
-              tar -xzf "artifacts/sia-${platform}/sia-${platform}.tar.gz" -C "npm-${platform}/"
-            fi
-            cat > "npm-${platform}/package.json" << EOF
-          {
-            "name": "@timeleap/sia-schema-${platform}",
-            "version": "${{ github.ref_name }}",
-            "os": ["$(echo ${platform} | cut -d- -f1)"],
-            "cpu": ["$(echo ${platform} | cut -d- -f2)"]
-          }
-          EOF
-            cd "npm-${platform}" && npm publish --access public || true && cd ..
+            echo "Publishing @timeleap/sia-schema-${platform}..."
+            cd "artifacts/npm-${platform}"
+            npm publish --access public || true
+            cd ../..
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish wrapper package
-        run: cd packages/npm && npm publish --access public
+        run: |
+          cd packages/npm
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-pypi:
     name: Publish to PyPI
-    needs: release
+    needs: [bump-version, build-pypi, build-pypi-sdist, release]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/download-artifact@v4
         with:
-          python-version: "3.12"
-      - name: Build and publish
-        run: |
-          pip install build twine
-          cd packages/pip
-          python -m build
-          twine upload dist/*
+          pattern: pypi-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        with:
+          command: upload
+          args: --non-interactive dist/*
         env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}

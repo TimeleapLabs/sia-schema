@@ -874,7 +874,7 @@ dependencies = [
 
 [[package]]
 name = "sia-schema-cli"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -883,7 +883,7 @@ dependencies = [
 
 [[package]]
 name = "sia-schema-core"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "heck",
  "insta",
@@ -894,7 +894,7 @@ dependencies = [
 
 [[package]]
 name = "sia-schema-lsp"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "dashmap 6.1.0",
  "serde_json",
@@ -905,7 +905,7 @@ dependencies = [
 
 [[package]]
 name = "sia-schema-wasm"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
