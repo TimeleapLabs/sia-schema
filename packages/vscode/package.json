@@ -2,7 +2,7 @@
   "name": "sia-schema",
   "displayName": "Sia Schema",
   "description": "Language support for Sia schema files (.sia) with LSP",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "publisher": "timeleap",
   "repository": {
     "type": "git",

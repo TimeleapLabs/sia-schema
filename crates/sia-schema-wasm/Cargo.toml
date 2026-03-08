@@ -1,6 +1,6 @@
 [package]
 name = "sia-schema-wasm"
-version = "0.1.0"
+version = "2.0.0"
 edition = "2021"
 description = "Sia schema compiler WASM bindings"
 license = "MIT"
