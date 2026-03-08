@@ -54,5 +54,14 @@ wasm:
 vscode:
     cd packages/vscode && npm install && npm run compile
 
+# Install LSP to PATH, compile extension, launch Extension Development Host
+vscode-dev: vscode
+    cargo install --path crates/sia-schema-lsp
+    code --extensionDevelopmentPath="$(pwd)/packages/vscode" .
+
+# Package VS Code extension as .vsix
+vscode-package: vscode
+    cd packages/vscode && npx @vscode/vsce package
+
 # Everything: full check + grammar rebuild
 all: check grammar
