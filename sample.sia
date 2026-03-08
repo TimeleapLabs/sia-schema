@@ -5,7 +5,7 @@ schema Person {
   tags     string8[]
   address  Address
   test     string
-data bool  
+  data     bool
 }
 
 schema Address {

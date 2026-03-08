@@ -94,6 +94,10 @@ pub fn completions(
                 ..Default::default()
             });
         }
+        CompletionContext::FieldName => {
+            // At the field name position — no completions to offer.
+            // The user is typing a new field name, which is free-form.
+        }
         CompletionContext::FieldType | CompletionContext::Unknown => {
             // Built-in types
             for type_name in symbols::builtin_type_names() {
@@ -388,6 +392,8 @@ pub fn format_document(source: &str) -> Vec<TextEdit> {
 #[derive(Debug)]
 enum CompletionContext {
     TopLevel,
+    /// At the start of a line inside a schema block — typing a field name.
+    FieldName,
     FieldType,
     /// Inside parentheses after a field type, e.g. `string8(|)`
     FieldOptionKey,
@@ -435,7 +441,20 @@ fn determine_context(source: &str, offset: usize) -> CompletionContext {
     if brace_depth == 0 {
         CompletionContext::TopLevel
     } else if brace_depth >= 1 {
-        CompletionContext::FieldType
+        // Inside a schema block — determine if we're at a field name or type position.
+        // Extract the current line up to the cursor.
+        let current_line_start = before.rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let line_before_cursor = before[current_line_start..].trim_start();
+        let word_count = line_before_cursor.split_whitespace().count();
+
+        if word_count <= 1 {
+            // No words yet or typing the first word — this is the field name position.
+            // A field name with `?` suffix (e.g. `age?`) still counts as one word.
+            CompletionContext::FieldName
+        } else {
+            // At least one word already (the field name) — this is the type position.
+            CompletionContext::FieldType
+        }
     } else {
         CompletionContext::Unknown
     }
