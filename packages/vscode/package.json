@@ -48,6 +48,11 @@
           "description": "Path to the sia-lsp binary. If empty, uses the bundled or PATH version."
         }
       }
+    },
+    "configurationDefaults": {
+      "[sia]": {
+        "editor.formatOnSave": true
+      }
     }
   },
   "scripts": {
