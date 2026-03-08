@@ -873,7 +873,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sia-schema-cli"
+name = "sia-schema"
 version = "2.0.0"
 dependencies = [
  "clap",

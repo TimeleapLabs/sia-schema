@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/sia-schema-core",
-    "crates/sia-schema-cli",
+    "crates/sia-schema",
     "crates/sia-schema-lsp",
     "crates/sia-schema-wasm",
 ]

@@ -58,12 +58,12 @@ jobs:
           VERSION="${{ steps.bump.outputs.version }}"
 
           # Update workspace member crate versions
-          for crate in sia-schema-core sia-schema-cli sia-schema-lsp sia-schema-wasm; do
+          for crate in sia-schema-core sia-schema sia-schema-lsp sia-schema-wasm; do
             sed -i "0,/^version = .*/s//version = \"${VERSION}\"/" "crates/${crate}/Cargo.toml"
           done
 
           # Update inter-crate dependency versions
-          sed -i "s/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"[^\"]*\"/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"${VERSION}\"/" crates/sia-schema-cli/Cargo.toml
+          sed -i "s/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"[^\"]*\"/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"${VERSION}\"/" crates/sia-schema/Cargo.toml
           sed -i "s/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"[^\"]*\"/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"${VERSION}\"/" crates/sia-schema-lsp/Cargo.toml
           sed -i "s/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"[^\"]*\"/sia-schema-core = { path = \"..\/sia-schema-core\", version = \"${VERSION}\"/" crates/sia-schema-wasm/Cargo.toml
 
@@ -161,11 +161,11 @@ jobs:
 
       - name: Build (native)
         if: ${{ !matrix.cross }}
-        run: cargo build --release --target ${{ matrix.target }} -p sia-schema-cli
+        run: cargo build --release --target ${{ matrix.target }} -p sia-schema
 
       - name: Build (cross)
         if: matrix.cross
-        run: cross build --release --target ${{ matrix.target }} -p sia-schema-cli
+        run: cross build --release --target ${{ matrix.target }} -p sia-schema
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
@@ -339,8 +339,8 @@ jobs:
         run: cargo publish -p sia-schema-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Wait for crates.io index
         run: sleep 30
-      - name: Publish sia-schema-cli
-        run: cargo publish -p sia-schema-cli --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Publish sia-schema
+        run: cargo publish -p sia-schema --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   publish-npm:
     name: Publish to npm

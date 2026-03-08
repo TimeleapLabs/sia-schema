@@ -7,7 +7,7 @@ A schema compiler for [Sia](https://github.com/TimeleapLabs/ts-sia), the fastest
 ### Cargo (from source)
 
 ```bash
-cargo install sia-schema-cli
+cargo install sia-schema
 ```
 
 ### npm
@@ -140,7 +140,7 @@ Requirements: Neovim 0.11+, `nvim-treesitter`, Mason (optional).
 ```
 crates/
   sia-schema-core/     Core library: lexer, parser, IR, generators, formatter, linter
-  sia-schema-cli/      CLI binary (sia)
+  sia-schema/          CLI binary (sia)
   sia-schema-lsp/      LSP server library (used by `sia lsp` subcommand)
   sia-schema-wasm/     WASM bindings
 packages/
@@ -156,7 +156,7 @@ python/
 ```bash
 cargo build --workspace                    # Build everything
 cargo test --workspace                     # Run all tests
-cargo build --release -p sia-schema-cli    # Release build of CLI
+cargo build --release -p sia-schema         # Release build of CLI
 ```
 
 ### Just recipes

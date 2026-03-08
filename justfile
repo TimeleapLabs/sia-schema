@@ -56,11 +56,11 @@ vscode:
 
 # Install sia binary to PATH from source
 install:
-    cargo install --path crates/sia-schema-cli
+    cargo install --path crates/sia-schema
 
 # Install sia binary, compile extension, launch Extension Development Host
 vscode-dev: vscode
-    cargo install --path crates/sia-schema-cli
+    cargo install --path crates/sia-schema
     code --extensionDevelopmentPath="$(pwd)/packages/vscode" "$(pwd)"
 
 # Package VS Code extension as .vsix
