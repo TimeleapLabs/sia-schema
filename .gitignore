@@ -26,7 +26,6 @@ output.*
 *~
 .idea/
 .vscode/
-!packages/vscode/.vscode/
 
 # OS
 .DS_Store
