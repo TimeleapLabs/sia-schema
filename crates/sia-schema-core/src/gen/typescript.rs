@@ -1,60 +1,32 @@
-use std::collections::HashSet;
 use std::fmt::Write;
 
 use heck::{ToLowerCamelCase, ToPascalCase};
 
 use crate::ir::*;
 
-/// Generate TypeScript code from definitions.
-pub fn generate(definitions: &[Definition]) -> String {
+/// Generate TypeScript code from schema definitions.
+pub fn generate(definitions: &[SchemaDefinition]) -> String {
     let gen = TsGenerator::new(definitions);
     gen.generate()
 }
 
-#[allow(dead_code)]
 struct TsGenerator<'a> {
-    definitions: &'a [Definition],
-    known_schemas: HashSet<&'a str>,
+    definitions: &'a [SchemaDefinition],
 }
 
 impl<'a> TsGenerator<'a> {
-    fn new(definitions: &'a [Definition]) -> Self {
-        let known_schemas = definitions
-            .iter()
-            .filter_map(|d| match d {
-                Definition::Schema(s) => Some(s.name.as_str()),
-                _ => None,
-            })
-            .collect();
-
-        Self {
-            definitions,
-            known_schemas,
-        }
+    fn new(definitions: &'a [SchemaDefinition]) -> Self {
+        Self { definitions }
     }
 
     fn generate(&self) -> String {
         let mut parts: Vec<String> = Vec::new();
-        let mut has_plugins = false;
 
-        for def in self.definitions {
-            match def {
-                Definition::Schema(s) => {
-                    parts.push(self.schema_to_code(s));
-                }
-                Definition::Plugin(p) => {
-                    has_plugins = true;
-                    parts.push(self.plugin_to_code(p));
-                }
-            }
+        for schema in self.definitions {
+            parts.push(self.schema_to_code(schema));
         }
 
-        let mut imports = vec!["import { Sia } from \"@timeleap/sia\";".to_string()];
-        if has_plugins {
-            imports.push("import { Client, Function } from \"@timeleap/client\";".to_string());
-        }
-
-        let mut output = imports.join("\n");
+        let mut output = "import { Sia } from \"@timeleap/sia\";".to_string();
         for part in &parts {
             output.push_str("\n\n");
             output.push_str(part);
@@ -163,165 +135,6 @@ impl<'a> TsGenerator<'a> {
 
         writeln!(out, "  }};").unwrap();
         write!(out, "}}").unwrap();
-        out
-    }
-
-    fn plugin_to_code(&self, plugin: &PluginDefinition) -> String {
-        let mut out = String::new();
-
-        writeln!(out, "export class {} {{", plugin.alias).unwrap();
-        writeln!(out, "  private methods: Map<string, Function> = new Map();").unwrap();
-        writeln!(out, "  private pluginName = \"{}\";", plugin.name).unwrap();
-        writeln!(out).unwrap();
-        writeln!(out, "  constructor(private client: Client) {{}}").unwrap();
-        writeln!(out).unwrap();
-        writeln!(out, "  static connect(client: Client): {} {{", plugin.alias).unwrap();
-        writeln!(out, "    return new {}(client);", plugin.alias).unwrap();
-        writeln!(out, "  }}").unwrap();
-        writeln!(out).unwrap();
-
-        // getMethod
-        writeln!(out, "  private getMethod(").unwrap();
-        writeln!(out, "    method: string,").unwrap();
-        writeln!(out, "    timeout: number,").unwrap();
-        writeln!(out, "    fee: {{ currency: string; amount: number }},").unwrap();
-        writeln!(out, "  ): Function {{").unwrap();
-        writeln!(out, "    if (!this.methods.has(method)) {{").unwrap();
-        writeln!(out, "      this.methods.set(").unwrap();
-        writeln!(out, "        method,").unwrap();
-        writeln!(out, "        this.client.method({{").unwrap();
-        writeln!(out, "          plugin: this.pluginName,").unwrap();
-        writeln!(out, "          method,").unwrap();
-        writeln!(out, "          timeout,").unwrap();
-        writeln!(out, "          fee,").unwrap();
-        writeln!(out, "        }}),").unwrap();
-        writeln!(out, "      );").unwrap();
-        writeln!(out, "    }}").unwrap();
-        writeln!(out, "    return this.methods.get(method)!;").unwrap();
-        writeln!(out, "  }}").unwrap();
-
-        for method in &plugin.methods {
-            out.push('\n');
-            out.push_str(&self.method_to_code(method));
-        }
-
-        write!(out, "}}").unwrap();
-        out
-    }
-
-    fn method_to_code(&self, method: &MethodDefinition) -> String {
-        let mut out = String::new();
-
-        // Method signature
-        write!(out, "  public async {}(\n    sia: Sia,\n", method.name).unwrap();
-
-        let fields = match &method.fields {
-            MethodParams::Fields(fields) => fields.clone(),
-            MethodParams::Reference(field) => vec![field.clone()],
-        };
-
-        for field in &fields {
-            let optional = if field.optional { "?" } else { "" };
-            let ts_type = self.field_type_to_ts_type(field);
-            writeln!(out, "    {}{}: {},", field.name, optional, ts_type).unwrap();
-        }
-
-        // Return type
-        let returns = match &method.returns {
-            MethodParams::Fields(fields) => fields.clone(),
-            MethodParams::Reference(field) => vec![field.clone()],
-        };
-
-        if returns.len() > 1 || matches!(&method.returns, MethodParams::Fields(_)) {
-            writeln!(out, "  ): Promise<{{").unwrap();
-            for field in &returns {
-                let ts_type = self.field_type_to_ts_type(field);
-                writeln!(out, "    {}: {};", field.name, ts_type).unwrap();
-            }
-            writeln!(out, "  }}> {{").unwrap();
-        } else {
-            let ts_type = self.field_type_to_ts_type(&returns[0]);
-            writeln!(out, "  ): Promise<{}> {{", ts_type).unwrap();
-        }
-
-        // Serialize params
-        for field in &fields {
-            if field.is_array {
-                let (func_name, _) = self.serialize_func(field, "sia");
-                // Note: the TS expected output has `sia.addString8(v)` not `s.addString8(v)` inside the plugin method
-                writeln!(
-                    out,
-                    "    sia.addArray8({}, (s: Sia, v) => {}(v));",
-                    field.name, func_name
-                )
-                .unwrap();
-            } else {
-                let (func_name, func_args) = self.serialize_func(field, "sia");
-                let value = if field.optional {
-                    format!("{} ?? {}", field.name, self.ts_literal_default(field))
-                } else {
-                    field.name.clone()
-                };
-                writeln!(out, "    {}({}{});", func_name, func_args, value).unwrap();
-            }
-        }
-
-        // getMethod call
-        let timeout = method.timeout_num();
-        let fee = method.fee();
-        let currency = method.currency();
-
-        // Check line length for prettier wrapping
-        let single_line = format!(
-            "    const method = this.getMethod(\"{}\", {}, {{ currency: \"{}\", amount: {} }});",
-            method.name, timeout, currency, fee
-        );
-        if single_line.len() > 80 {
-            writeln!(
-                out,
-                "    const method = this.getMethod(\"{}\", {}, {{",
-                method.name, timeout
-            )
-            .unwrap();
-            writeln!(out, "      currency: \"{}\",", currency).unwrap();
-            writeln!(out, "      amount: {},", fee).unwrap();
-            writeln!(out, "    }});").unwrap();
-        } else {
-            writeln!(out, "{}", single_line).unwrap();
-        }
-        writeln!(
-            out,
-            "    const response = await method.populate(sia).invoke();"
-        )
-        .unwrap();
-
-        // Deserialize returns
-        if returns.len() > 1 || matches!(&method.returns, MethodParams::Fields(_)) {
-            for field in &returns {
-                let variable = format!("resp_{}", field.name).to_lower_camel_case();
-                let (func_name, func_args) = self.deserialize_func(field, "response");
-                writeln!(
-                    out,
-                    "    const {} = {}({});",
-                    variable, func_name, func_args
-                )
-                .unwrap();
-            }
-
-            writeln!(out, "    return {{").unwrap();
-            for field in &returns {
-                let variable = format!("resp_{}", field.name).to_lower_camel_case();
-                writeln!(out, "      {}: {},", field.name, variable).unwrap();
-            }
-            writeln!(out, "    }};").unwrap();
-        } else {
-            let field = &returns[0];
-            let (func_name, func_args) = self.deserialize_func(field, "response");
-            writeln!(out, "    const value = {}({});", func_name, func_args).unwrap();
-            writeln!(out, "    return value;").unwrap();
-        }
-
-        writeln!(out, "  }}").unwrap();
         out
     }
 

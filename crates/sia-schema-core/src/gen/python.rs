@@ -3,26 +3,20 @@ use std::fmt::Write;
 
 use crate::ir::*;
 
-/// Generate Python code from definitions.
-pub fn generate(definitions: &[Definition]) -> String {
+/// Generate Python code from schema definitions.
+pub fn generate(definitions: &[SchemaDefinition]) -> String {
     let gen = PyGenerator::new(definitions);
     gen.generate()
 }
 
 struct PyGenerator<'a> {
-    definitions: &'a [Definition],
+    definitions: &'a [SchemaDefinition],
     known_schemas: HashSet<&'a str>,
 }
 
 impl<'a> PyGenerator<'a> {
-    fn new(definitions: &'a [Definition]) -> Self {
-        let known_schemas = definitions
-            .iter()
-            .filter_map(|d| match d {
-                Definition::Schema(s) => Some(s.name.as_str()),
-                _ => None,
-            })
-            .collect();
+    fn new(definitions: &'a [SchemaDefinition]) -> Self {
+        let known_schemas = definitions.iter().map(|s| s.name.as_str()).collect();
         Self {
             definitions,
             known_schemas,
@@ -32,15 +26,8 @@ impl<'a> PyGenerator<'a> {
     fn generate(&self) -> String {
         let mut parts: Vec<String> = vec!["from sia import Sia".to_string()];
 
-        for def in self.definitions {
-            match def {
-                Definition::Schema(s) => {
-                    parts.push(self.schema_to_code(s));
-                }
-                Definition::Plugin(p) => {
-                    parts.push(self.plugin_to_code(p));
-                }
-            }
+        for schema in self.definitions {
+            parts.push(self.schema_to_code(schema));
         }
 
         parts.join("\n\n")
@@ -154,15 +141,6 @@ impl<'a> PyGenerator<'a> {
 
         write!(out, "        )").unwrap();
         out
-    }
-
-    fn plugin_to_code(&self, plugin: &PluginDefinition) -> String {
-        format!(
-            "# Cannot generate plugin '{}' due to lack of RPC support in the Python Sia generator.\n\
-             # You must connect to this plugin manually via RPC. Please check the tutorial below:\n\
-             # https://timeleap.swiss/docs/products/sia/highlevel#rpc",
-            plugin.name
-        )
     }
 
     fn field_type_to_py_type(&self, field: &FieldDefinition) -> String {

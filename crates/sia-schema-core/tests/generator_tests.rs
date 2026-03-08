@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use sia_schema_core::ir::*;
 
 /// Build the mock IR matching tests/sample-mock.ts from the TS compiler.
-fn sample_definitions() -> Vec<Definition> {
+fn sample_definitions() -> Vec<SchemaDefinition> {
     vec![
-        Definition::Schema(SchemaDefinition {
+        SchemaDefinition {
             name: "Sample".into(),
             fields: vec![
                 FieldDefinition {
@@ -65,8 +65,8 @@ fn sample_definitions() -> Vec<Definition> {
                     options: HashMap::new(),
                 },
             ],
-        }),
-        Definition::Schema(SchemaDefinition {
+        },
+        SchemaDefinition {
             name: "SampleAddress".into(),
             fields: vec![
                 FieldDefinition {
@@ -94,51 +94,7 @@ fn sample_definitions() -> Vec<Definition> {
                     options: HashMap::new(),
                 },
             ],
-        }),
-        Definition::Plugin(PluginDefinition {
-            name: "swiss.timeleap.isWizard.v1".into(),
-            alias: "Sorcery".into(),
-            methods: vec![MethodDefinition {
-                name: "isWizard".into(),
-                fields: MethodParams::Fields(vec![
-                    FieldDefinition {
-                        name: "age".into(),
-                        field_type: "uint8".into(),
-                        optional: false,
-                        is_array: false,
-                        default_value: None,
-                        options: HashMap::new(),
-                    },
-                    FieldDefinition {
-                        name: "name".into(),
-                        field_type: "string8".into(),
-                        optional: false,
-                        is_array: true,
-                        default_value: None,
-                        options: HashMap::new(),
-                    },
-                ]),
-                returns: MethodParams::Fields(vec![
-                    FieldDefinition {
-                        name: "isWizard".into(),
-                        field_type: "bool".into(),
-                        optional: false,
-                        is_array: false,
-                        default_value: None,
-                        options: HashMap::new(),
-                    },
-                    FieldDefinition {
-                        name: "message".into(),
-                        field_type: "string8".into(),
-                        optional: false,
-                        is_array: false,
-                        default_value: None,
-                        options: HashMap::new(),
-                    },
-                ]),
-                options: HashMap::from([("timeout".into(), Value::String("5000".into()))]),
-            }],
-        }),
+        },
     ]
 }
 

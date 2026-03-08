@@ -9,14 +9,6 @@ use logos::Logos;
 pub enum TokenKind {
     #[token("schema")]
     Schema,
-    #[token("plugin")]
-    Plugin,
-    #[token("method")]
-    Method,
-    #[token("as")]
-    As,
-    #[token("returns")]
-    Returns,
 
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
     Identifier,
@@ -51,14 +43,7 @@ pub enum TokenKind {
 
 impl TokenKind {
     pub fn is_keyword(self) -> bool {
-        matches!(
-            self,
-            TokenKind::Schema
-                | TokenKind::Plugin
-                | TokenKind::Method
-                | TokenKind::As
-                | TokenKind::Returns
-        )
+        matches!(self, TokenKind::Schema)
     }
 }
 
@@ -96,14 +81,14 @@ pub fn tokenize(source: &str) -> (Vec<SpannedToken>, Vec<crate::error::Diagnosti
         }
     }
 
-    // Post-lex pass: demote keywords to identifiers inside schema {} and method {} blocks.
+    // Post-lex pass: demote keywords to identifiers inside schema {} blocks.
     demote_keywords_in_blocks(&mut tokens);
 
     (tokens, errors)
 }
 
-/// Inside `schema { ... }` and `method { ... }` blocks, all keywords
-/// become identifiers so fields can be named "schema", "method", etc.
+/// Inside `schema { ... }` blocks, all keywords become identifiers so fields
+/// can be named "schema", etc.
 ///
 /// This replicates the TS compiler's post-tokenization behavior exactly.
 fn demote_keywords_in_blocks(tokens: &mut [SpannedToken]) {
@@ -116,7 +101,7 @@ fn demote_keywords_in_blocks(tokens: &mut [SpannedToken]) {
             continue;
         }
 
-        if !in_field_def && (token.kind == TokenKind::Method || token.kind == TokenKind::Schema) {
+        if !in_field_def && token.kind == TokenKind::Schema {
             maybe_field_def = true;
             continue;
         }
@@ -158,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_keyword_demotion_in_schema_block() {
-        let source = r#"schema Foo { schema string8 method int32 }"#;
+        let source = r#"schema Foo { schema string8 }"#;
         let (tokens, errors) = tokenize(source);
         assert!(errors.is_empty());
         // "schema" after { should be demoted to Identifier
@@ -166,8 +151,6 @@ mod tests {
         assert_eq!(tokens[2].kind, TokenKind::LCurly);
         assert_eq!(tokens[3].kind, TokenKind::Identifier); // "schema" as field name
         assert_eq!(tokens[3].text, "schema");
-        assert_eq!(tokens[5].kind, TokenKind::Identifier); // "method" as field name
-        assert_eq!(tokens[5].text, "method");
     }
 
     #[test]
@@ -195,21 +178,6 @@ mod tests {
         assert!(errors.is_empty());
         assert_eq!(tokens[1].kind, TokenKind::NumberLiteral);
         assert_eq!(tokens[1].text, "-42");
-    }
-
-    #[test]
-    fn test_plugin_tokens() {
-        let source = "plugin swiss.timeleap.v1 as Sorcery { }";
-        let (tokens, errors) = tokenize(source);
-        assert!(errors.is_empty());
-        assert_eq!(tokens[0].kind, TokenKind::Plugin);
-        assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[2].kind, TokenKind::Dot);
-        assert_eq!(tokens[3].kind, TokenKind::Identifier);
-        assert_eq!(tokens[4].kind, TokenKind::Dot);
-        assert_eq!(tokens[5].kind, TokenKind::Identifier);
-        assert_eq!(tokens[6].kind, TokenKind::As);
-        assert_eq!(tokens[7].kind, TokenKind::Identifier);
     }
 
     #[test]

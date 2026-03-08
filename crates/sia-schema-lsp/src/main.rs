@@ -7,12 +7,12 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use sia_schema_core::error::LineIndex;
-use sia_schema_core::ir::Definition;
+use sia_schema_core::ir::SchemaDefinition;
 
 /// Per-document state.
 struct DocumentState {
     source: String,
-    definitions: Vec<Definition>,
+    definitions: Vec<SchemaDefinition>,
     line_index: LineIndex,
     symbol_table: symbols::SymbolTable,
 }

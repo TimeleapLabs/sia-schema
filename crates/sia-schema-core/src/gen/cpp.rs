@@ -6,31 +6,25 @@ use heck::{ToLowerCamelCase, ToPascalCase};
 use crate::ir::*;
 
 /// Generate combined C++ output (hpp + cpp joined).
-pub fn generate_combined(definitions: &[Definition], file_name: &str) -> String {
+pub fn generate_combined(definitions: &[SchemaDefinition], file_name: &str) -> String {
     let (hpp, cpp) = generate(definitions, file_name);
     format!("{}\n\n{}", hpp, cpp)
 }
 
 /// Generate C++ code split into header and source.
-pub fn generate(definitions: &[Definition], file_name: &str) -> (String, String) {
+pub fn generate(definitions: &[SchemaDefinition], file_name: &str) -> (String, String) {
     let gen = CppGenerator::new(definitions);
     gen.generate(file_name)
 }
 
 struct CppGenerator<'a> {
-    definitions: &'a [Definition],
+    definitions: &'a [SchemaDefinition],
     known_schemas: HashSet<&'a str>,
 }
 
 impl<'a> CppGenerator<'a> {
-    fn new(definitions: &'a [Definition]) -> Self {
-        let known_schemas = definitions
-            .iter()
-            .filter_map(|d| match d {
-                Definition::Schema(s) => Some(s.name.as_str()),
-                _ => None,
-            })
-            .collect();
+    fn new(definitions: &'a [SchemaDefinition]) -> Self {
+        let known_schemas = definitions.iter().map(|s| s.name.as_str()).collect();
         Self {
             definitions,
             known_schemas,
@@ -51,23 +45,14 @@ impl<'a> CppGenerator<'a> {
         let mut cpp_parts: Vec<String> = vec![format!("#include \"{}.hpp\"", file_name)];
 
         // Forward declarations
-        for def in self.definitions {
-            if let Definition::Schema(s) = def {
-                hpp_parts.push(format!("struct {};", s.name.to_pascal_case()));
-            }
+        for schema in self.definitions {
+            hpp_parts.push(format!("struct {};", schema.name.to_pascal_case()));
         }
 
-        for def in self.definitions {
-            match def {
-                Definition::Schema(s) => {
-                    let (hpp, cpp) = self.schema_to_hpp_and_cpp(s);
-                    hpp_parts.push(hpp);
-                    cpp_parts.push(cpp);
-                }
-                Definition::Plugin(p) => {
-                    cpp_parts.push(self.plugin_to_code(p));
-                }
-            }
+        for schema in self.definitions {
+            let (hpp, cpp) = self.schema_to_hpp_and_cpp(schema);
+            hpp_parts.push(hpp);
+            cpp_parts.push(cpp);
         }
 
         (hpp_parts.join("\n\n"), cpp_parts.join("\n\n"))
@@ -169,15 +154,6 @@ impl<'a> CppGenerator<'a> {
         writeln!(out, "  return result;").unwrap();
         write!(out, "}}").unwrap();
         out
-    }
-
-    fn plugin_to_code(&self, plugin: &PluginDefinition) -> String {
-        format!(
-            "// Plugin '{}' is not supported in C++ generator.\n\
-             // RPC support must be implemented manually.\n\
-             // See: https://timeleap.swiss/docs/products/sia/highlevel#rpc",
-            plugin.name
-        )
     }
 
     fn field_type_to_cpp_type(&self, field: &FieldDefinition) -> String {

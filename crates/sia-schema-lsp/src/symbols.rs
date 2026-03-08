@@ -25,30 +25,10 @@ pub struct FieldSymbol {
     pub span: Span,
 }
 
-/// Information about a plugin symbol.
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct PluginSymbol {
-    pub name: String,
-    pub alias: String,
-    pub name_span: Span,
-    pub definition_span: Span,
-    pub methods: Vec<MethodSymbol>,
-}
-
-/// Information about a method.
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct MethodSymbol {
-    pub name: String,
-    pub span: Span,
-}
-
 /// A symbol table built from parsed definitions for LSP features.
 #[derive(Debug, Default)]
 pub struct SymbolTable {
     pub schemas: HashMap<String, SchemaSymbol>,
-    pub plugins: HashMap<String, PluginSymbol>,
     /// Maps type references (field types) to the locations where they appear.
     pub type_references: Vec<TypeReference>,
 }
@@ -67,76 +47,46 @@ impl SymbolTable {
     /// fields and schemas at a fine-grained level, we use approximate spans
     /// based on searching the source text. A future improvement would be to
     /// have the parser emit spans for each AST node.
-    pub fn from_definitions(definitions: &[Definition], source: &str) -> Self {
+    pub fn from_definitions(definitions: &[SchemaDefinition], source: &str) -> Self {
         let mut table = SymbolTable::default();
         let _line_index = LineIndex::new(source);
 
-        for def in definitions {
-            match def {
-                Definition::Schema(schema) => {
-                    // Find the schema name in the source
-                    let name_span =
-                        find_identifier_span(source, &schema.name, 0).unwrap_or(Span::new(0, 0));
+        for schema in definitions {
+            // Find the schema name in the source
+            let name_span =
+                find_identifier_span(source, &schema.name, 0).unwrap_or(Span::new(0, 0));
 
-                    let mut fields = Vec::new();
-                    for field in &schema.fields {
-                        let field_span = find_identifier_span(source, &field.name, name_span.end())
+            let mut fields = Vec::new();
+            for field in &schema.fields {
+                let field_span = find_identifier_span(source, &field.name, name_span.end())
+                    .unwrap_or(Span::new(0, 0));
+                fields.push(FieldSymbol {
+                    name: field.name.clone(),
+                    field_type: field.field_type.clone(),
+                    span: field_span,
+                });
+
+                // Track type references for custom types
+                if is_custom_type(&field.field_type) {
+                    let type_span =
+                        find_identifier_span(source, &field.field_type, field_span.end())
                             .unwrap_or(Span::new(0, 0));
-                        fields.push(FieldSymbol {
-                            name: field.name.clone(),
-                            field_type: field.field_type.clone(),
-                            span: field_span,
-                        });
-
-                        // Track type references for custom types
-                        if is_custom_type(&field.field_type) {
-                            let type_span =
-                                find_identifier_span(source, &field.field_type, field_span.end())
-                                    .unwrap_or(Span::new(0, 0));
-                            table.type_references.push(TypeReference {
-                                type_name: field.field_type.clone(),
-                                span: type_span,
-                            });
-                        }
-                    }
-
-                    table.schemas.insert(
-                        schema.name.clone(),
-                        SchemaSymbol {
-                            name: schema.name.clone(),
-                            name_span,
-                            definition_span: name_span, // Approximate
-                            fields,
-                        },
-                    );
-                }
-                Definition::Plugin(plugin) => {
-                    let name_span =
-                        find_identifier_span(source, &plugin.alias, 0).unwrap_or(Span::new(0, 0));
-
-                    let mut methods = Vec::new();
-                    for method in &plugin.methods {
-                        let method_span =
-                            find_identifier_span(source, &method.name, name_span.end())
-                                .unwrap_or(Span::new(0, 0));
-                        methods.push(MethodSymbol {
-                            name: method.name.clone(),
-                            span: method_span,
-                        });
-                    }
-
-                    table.plugins.insert(
-                        plugin.alias.clone(),
-                        PluginSymbol {
-                            name: plugin.name.clone(),
-                            alias: plugin.alias.clone(),
-                            name_span,
-                            definition_span: name_span,
-                            methods,
-                        },
-                    );
+                    table.type_references.push(TypeReference {
+                        type_name: field.field_type.clone(),
+                        span: type_span,
+                    });
                 }
             }
+
+            table.schemas.insert(
+                schema.name.clone(),
+                SchemaSymbol {
+                    name: schema.name.clone(),
+                    name_span,
+                    definition_span: name_span, // Approximate
+                    fields,
+                },
+            );
         }
 
         table

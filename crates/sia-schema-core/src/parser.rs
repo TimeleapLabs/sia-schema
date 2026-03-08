@@ -4,8 +4,6 @@ use crate::error::{Diagnostic, Span};
 use crate::ir::*;
 use crate::lexer::{SpannedToken, TokenKind};
 
-use heck::{ToLowerCamelCase, ToPascalCase};
-
 /// Recursive descent parser for the Sia schema language.
 pub struct Parser {
     tokens: Vec<SpannedToken>,
@@ -13,9 +11,9 @@ pub struct Parser {
     diagnostics: Vec<Diagnostic>,
 }
 
-/// Result of parsing: definitions + diagnostics.
+/// Result of parsing: schema definitions + diagnostics.
 pub struct ParseResult {
-    pub definitions: Vec<Definition>,
+    pub definitions: Vec<SchemaDefinition>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -96,7 +94,7 @@ impl Parser {
     fn synchronize(&mut self) {
         while !self.at_end() {
             match self.peek_kind() {
-                Some(TokenKind::Schema) | Some(TokenKind::Plugin) => return,
+                Some(TokenKind::Schema) => return,
                 Some(TokenKind::RCurly) => {
                     self.advance();
                     return;
@@ -110,26 +108,21 @@ impl Parser {
 
     // -- Grammar rules --
 
-    /// siaSchema = (schema | plugin)*
-    fn parse_sia_schema(&mut self) -> Vec<Definition> {
+    /// siaSchema = schema*
+    fn parse_sia_schema(&mut self) -> Vec<SchemaDefinition> {
         let mut definitions = Vec::new();
 
         while !self.at_end() {
             match self.peek_kind() {
                 Some(TokenKind::Schema) => {
                     if let Some(schema) = self.parse_schema() {
-                        definitions.push(Definition::Schema(schema));
-                    }
-                }
-                Some(TokenKind::Plugin) => {
-                    if let Some(plugin) = self.parse_plugin() {
-                        definitions.push(Definition::Plugin(plugin));
+                        definitions.push(schema);
                     }
                 }
                 _ => {
                     let span = self.current_span();
                     self.diagnostics
-                        .push(Diagnostic::error("Expected 'schema' or 'plugin'", span));
+                        .push(Diagnostic::error("Expected 'schema'", span));
                     self.synchronize();
                 }
             }
@@ -160,136 +153,6 @@ impl Parser {
         self.expect(TokenKind::RCurly)?;
 
         Some(SchemaDefinition { name, fields })
-    }
-
-    /// plugin = "plugin" pluginName [asName] "{" method* "}"
-    fn parse_plugin(&mut self) -> Option<PluginDefinition> {
-        self.expect(TokenKind::Plugin)?;
-
-        let name = self.parse_plugin_name()?;
-
-        let alias = if self.at(TokenKind::As) {
-            self.parse_as_name()?
-        } else {
-            name.to_pascal_case()
-        };
-
-        self.expect(TokenKind::LCurly)?;
-
-        let mut methods = Vec::new();
-        while !self.at(TokenKind::RCurly) && !self.at_end() {
-            if self.at(TokenKind::Method) {
-                if let Some(method) = self.parse_method() {
-                    methods.push(method);
-                }
-            } else {
-                let span = self.current_span();
-                self.diagnostics.push(Diagnostic::error(
-                    "Expected 'method' inside plugin block",
-                    span,
-                ));
-                self.advance();
-            }
-        }
-
-        self.expect(TokenKind::RCurly)?;
-
-        Some(PluginDefinition {
-            name,
-            alias,
-            methods,
-        })
-    }
-
-    /// pluginName = Identifier ("." Identifier)*
-    fn parse_plugin_name(&mut self) -> Option<String> {
-        let first = self.expect(TokenKind::Identifier)?;
-        let mut name = first.text.clone();
-
-        while self.at(TokenKind::Dot) {
-            self.advance(); // consume '.'
-            let part = self.expect(TokenKind::Identifier)?;
-            name.push('.');
-            name.push_str(&part.text);
-        }
-
-        Some(name)
-    }
-
-    /// asName = "as" Identifier
-    fn parse_as_name(&mut self) -> Option<String> {
-        self.expect(TokenKind::As)?;
-        let name = self.expect(TokenKind::Identifier)?;
-        Some(name.text.clone())
-    }
-
-    /// method = "method" Identifier [typeOptions] params "returns" returns
-    fn parse_method(&mut self) -> Option<MethodDefinition> {
-        self.expect(TokenKind::Method)?;
-
-        let name_token = self.expect(TokenKind::Identifier)?;
-        let name = name_token.text.clone();
-
-        let options = if self.at(TokenKind::LParen) {
-            self.parse_type_options()
-        } else {
-            HashMap::new()
-        };
-
-        let fields = self.parse_params()?;
-
-        self.expect(TokenKind::Returns)?;
-
-        let returns = self.parse_returns()?;
-
-        Some(MethodDefinition {
-            name,
-            fields,
-            returns,
-            options,
-        })
-    }
-
-    /// params = "{" field* "}" | Identifier
-    fn parse_params(&mut self) -> Option<MethodParams> {
-        if self.at(TokenKind::LCurly) {
-            self.advance(); // consume '{'
-            let mut fields = Vec::new();
-            while !self.at(TokenKind::RCurly) && !self.at_end() {
-                if let Some(field) = self.parse_field() {
-                    fields.push(field);
-                } else {
-                    self.advance();
-                }
-            }
-            self.expect(TokenKind::RCurly)?;
-            Some(MethodParams::Fields(fields))
-        } else if self.at(TokenKind::Identifier) {
-            let token = self.advance().unwrap();
-            let type_name = token.text.clone();
-            let field_name = type_name.to_lower_camel_case();
-            Some(MethodParams::Reference(FieldDefinition {
-                name: field_name,
-                field_type: type_name,
-                optional: false,
-                is_array: false,
-                default_value: None,
-                options: HashMap::new(),
-            }))
-        } else {
-            let span = self.current_span();
-            self.diagnostics.push(Diagnostic::error(
-                "Expected '{' or type name for method params",
-                span,
-            ));
-            None
-        }
-    }
-
-    /// returns = "returns" ( "{" field* "}" | Identifier )
-    fn parse_returns(&mut self) -> Option<MethodParams> {
-        // Same structure as params
-        self.parse_params()
     }
 
     /// field = Identifier ["?"] Identifier [typeOptions] ["[]"] ["=" defaultValue]
@@ -459,96 +322,54 @@ mod tests {
         assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
         assert_eq!(result.definitions.len(), 1);
 
-        if let Definition::Schema(s) = &result.definitions[0] {
-            assert_eq!(s.name, "Foo");
-            assert_eq!(s.fields.len(), 2);
-            assert_eq!(s.fields[0].name, "name");
-            assert_eq!(s.fields[0].field_type, "string8");
-            assert_eq!(s.fields[1].name, "age");
-            assert_eq!(s.fields[1].field_type, "int32");
-        } else {
-            panic!("Expected schema");
-        }
+        let s = &result.definitions[0];
+        assert_eq!(s.name, "Foo");
+        assert_eq!(s.fields.len(), 2);
+        assert_eq!(s.fields[0].name, "name");
+        assert_eq!(s.fields[0].field_type, "string8");
+        assert_eq!(s.fields[1].name, "age");
+        assert_eq!(s.fields[1].field_type, "int32");
     }
 
     #[test]
     fn test_optional_field() {
         let result = parse_source("schema Foo { name? string8 }");
         assert!(result.diagnostics.is_empty());
-        if let Definition::Schema(s) = &result.definitions[0] {
-            assert!(s.fields[0].optional);
-        }
+        assert!(result.definitions[0].fields[0].optional);
     }
 
     #[test]
     fn test_array_field() {
         let result = parse_source("schema Foo { tags string8[] }");
         assert!(result.diagnostics.is_empty());
-        if let Definition::Schema(s) = &result.definitions[0] {
-            assert!(s.fields[0].is_array);
-        }
+        assert!(result.definitions[0].fields[0].is_array);
     }
 
     #[test]
     fn test_default_value() {
         let result = parse_source(r#"schema Foo { name string8 = "hello" }"#);
         assert!(result.diagnostics.is_empty());
-        if let Definition::Schema(s) = &result.definitions[0] {
-            assert_eq!(
-                s.fields[0].default_value,
-                Some(Value::String("hello".into()))
-            );
-        }
+        assert_eq!(
+            result.definitions[0].fields[0].default_value,
+            Some(Value::String("hello".into()))
+        );
     }
 
     #[test]
     fn test_type_options() {
         let result = parse_source(r#"schema Foo { name string8(encoding = "ascii") }"#);
         assert!(result.diagnostics.is_empty());
-        if let Definition::Schema(s) = &result.definitions[0] {
-            assert_eq!(
-                s.fields[0].options.get("encoding"),
-                Some(&Value::String("ascii".into()))
-            );
-        }
-    }
-
-    #[test]
-    fn test_plugin() {
-        let result = parse_source(
-            r#"plugin swiss.timeleap.v1 as Sorcery {
-                method test(timeout = 5000) {
-                    name string8
-                } returns {
-                    ok bool
-                }
-            }"#,
+        assert_eq!(
+            result.definitions[0].fields[0].options.get("encoding"),
+            Some(&Value::String("ascii".into()))
         );
-        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-
-        if let Definition::Plugin(p) = &result.definitions[0] {
-            assert_eq!(p.name, "swiss.timeleap.v1");
-            assert_eq!(p.alias, "Sorcery");
-            assert_eq!(p.methods.len(), 1);
-            assert_eq!(p.methods[0].name, "test");
-            assert_eq!(
-                p.methods[0].options.get("timeout"),
-                Some(&Value::Number(5000.0))
-            );
-        } else {
-            panic!("Expected plugin");
-        }
     }
 
     #[test]
     fn test_keyword_as_field_name() {
-        let result = parse_source("schema Foo { schema string8 method int32 returns bool }");
+        let result = parse_source("schema Foo { schema string8 }");
         assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-        if let Definition::Schema(s) = &result.definitions[0] {
-            assert_eq!(s.fields[0].name, "schema");
-            assert_eq!(s.fields[1].name, "method");
-            assert_eq!(s.fields[2].name, "returns");
-        }
+        assert_eq!(result.definitions[0].fields[0].name, "schema");
     }
 
     #[test]
@@ -576,6 +397,6 @@ mod tests {
         .unwrap();
         let result = parse_source(&source);
         assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-        assert_eq!(result.definitions.len(), 3); // 2 schemas + 1 plugin
+        assert_eq!(result.definitions.len(), 2); // 2 schemas
     }
 }

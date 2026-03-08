@@ -65,7 +65,3 @@ class SampleAddress():
             city=sia.read_string8(),
             zip=sia.read_int32(),
         )
-
-# Cannot generate plugin 'swiss.timeleap.isWizard.v1' due to lack of RPC support in the Python Sia generator.
-# You must connect to this plugin manually via RPC. Please check the tutorial below:
-# https://timeleap.swiss/docs/products/sia/highlevel#rpc

@@ -28,21 +28,6 @@
     }
   },
   {
-    "type": "dotted_name",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "identifier",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "field_definition",
     "named": true,
     "fields": {
@@ -77,67 +62,6 @@
         },
         {
           "type": "optional_marker",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "method_body",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "field_definition",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "method_definition",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "params": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "method_body",
-            "named": true
-          }
-        ]
-      },
-      "returns": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "method_body",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": false,
-      "types": [
-        {
-          "type": "option_list",
           "named": true
         }
       ]
@@ -187,57 +111,6 @@
       "types": [
         {
           "type": "option",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "plugin_body",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "method_definition",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "plugin_definition",
-    "named": true,
-    "fields": {
-      "alias": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      },
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "dotted_name",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "plugin_body",
           "named": true
         }
       ]
@@ -294,10 +167,6 @@
       "required": false,
       "types": [
         {
-          "type": "plugin_definition",
-          "named": true
-        },
-        {
           "type": "schema_definition",
           "named": true
         }
@@ -340,20 +209,12 @@
     "named": false
   },
   {
-    "type": ".",
-    "named": false
-  },
-  {
     "type": "=",
     "named": false
   },
   {
     "type": "array_marker",
     "named": true
-  },
-  {
-    "type": "as",
-    "named": false
   },
   {
     "type": "comment",
@@ -369,24 +230,12 @@
     "named": true
   },
   {
-    "type": "method",
-    "named": false
-  },
-  {
     "type": "number_literal",
     "named": true
   },
   {
     "type": "optional_marker",
     "named": true
-  },
-  {
-    "type": "plugin",
-    "named": false
-  },
-  {
-    "type": "returns",
-    "named": false
   },
   {
     "type": "schema",

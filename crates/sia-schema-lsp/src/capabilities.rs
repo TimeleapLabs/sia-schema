@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
 use sia_schema_core::error::{LineIndex, Severity as SiaSeverity};
-use sia_schema_core::ir::Definition;
+use sia_schema_core::ir::SchemaDefinition;
 
 use crate::symbols::{self, SymbolTable};
 
@@ -38,7 +38,7 @@ pub fn to_lsp_diagnostics(
 
 /// Generate semantic diagnostics using the core linter.
 pub fn semantic_diagnostics(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     source: &str,
     line_index: &LineIndex,
 ) -> Vec<Diagnostic> {
@@ -93,14 +93,6 @@ pub fn completions(
                 insert_text_format: Some(InsertTextFormat::SNIPPET),
                 ..Default::default()
             });
-            items.push(CompletionItem {
-                label: "plugin".into(),
-                kind: Some(CompletionItemKind::KEYWORD),
-                detail: Some("Define a new plugin".into()),
-                insert_text: Some("plugin ${1:name} as ${2:Alias} {\n  $0\n}".into()),
-                insert_text_format: Some(InsertTextFormat::SNIPPET),
-                ..Default::default()
-            });
         }
         CompletionContext::FieldType | CompletionContext::Unknown => {
             // Built-in types
@@ -121,18 +113,6 @@ pub fn completions(
                     ..Default::default()
                 });
             }
-        }
-        CompletionContext::InsidePlugin => {
-            items.push(CompletionItem {
-                label: "method".into(),
-                kind: Some(CompletionItemKind::KEYWORD),
-                detail: Some("Define a new method".into()),
-                insert_text: Some(
-                    "method ${1:name}(${2:timeout = 5000}) {\n  $0\n} returns {\n  \n}".into(),
-                ),
-                insert_text_format: Some(InsertTextFormat::SNIPPET),
-                ..Default::default()
-            });
         }
         CompletionContext::FieldOptionKey => {
             for (key, detail) in [
@@ -173,46 +153,6 @@ pub fn completions(
                     insert_text_format: Some(InsertTextFormat::SNIPPET),
                     ..Default::default()
                 });
-            }
-            _ => {}
-        },
-        CompletionContext::MethodOptionKey => {
-            for (key, detail) in [
-                ("timeout", "Request timeout in milliseconds"),
-                ("fee", "Fee amount for the method call"),
-                ("currency", "Currency for the fee"),
-            ] {
-                items.push(CompletionItem {
-                    label: key.into(),
-                    kind: Some(CompletionItemKind::PROPERTY),
-                    detail: Some(detail.into()),
-                    insert_text: Some(format!("{} = $0", key)),
-                    insert_text_format: Some(InsertTextFormat::SNIPPET),
-                    ..Default::default()
-                });
-            }
-        }
-        CompletionContext::MethodOptionValue { ref key } => match key.as_str() {
-            "timeout" | "fee" => {
-                let default = if key == "timeout" { "5000" } else { "0" };
-                items.push(CompletionItem {
-                    label: default.into(),
-                    kind: Some(CompletionItemKind::VALUE),
-                    detail: Some(format!("Numeric value for {}", key)),
-                    insert_text: Some(format!("${{0:{}}}", default)),
-                    insert_text_format: Some(InsertTextFormat::SNIPPET),
-                    ..Default::default()
-                });
-            }
-            "currency" => {
-                for val in ["\"UNQ\"", "\"ETH\"", "\"BTC\""] {
-                    items.push(CompletionItem {
-                        label: val.into(),
-                        kind: Some(CompletionItemKind::VALUE),
-                        detail: Some("Currency identifier".into()),
-                        ..Default::default()
-                    });
-                }
             }
             _ => {}
         },
@@ -286,121 +226,64 @@ pub fn goto_definition(
 
 /// Get document symbols.
 pub fn document_symbols(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     line_index: &LineIndex,
     symbol_table: &SymbolTable,
 ) -> Vec<DocumentSymbol> {
     let mut symbols = Vec::new();
 
-    for def in definitions {
-        match def {
-            Definition::Schema(s) => {
-                let schema_sym = symbol_table.schemas.get(&s.name);
-                let name_span = schema_sym
-                    .map(|sy| sy.name_span)
-                    .unwrap_or(sia_schema_core::error::Span::new(0, 0));
-                let (line, col) = line_index.line_col(name_span.offset);
+    for s in definitions {
+        let schema_sym = symbol_table.schemas.get(&s.name);
+        let name_span = schema_sym
+            .map(|sy| sy.name_span)
+            .unwrap_or(sia_schema_core::error::Span::new(0, 0));
+        let (line, col) = line_index.line_col(name_span.offset);
 
-                let range = Range {
-                    start: Position::new(line as u32, col as u32),
-                    end: Position::new(line as u32, (col + name_span.length) as u32),
+        let range = Range {
+            start: Position::new(line as u32, col as u32),
+            end: Position::new(line as u32, (col + name_span.length) as u32),
+        };
+
+        let children: Vec<DocumentSymbol> = s
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                let field_span = schema_sym
+                    .and_then(|sy| sy.fields.get(i))
+                    .map(|fs| fs.span)
+                    .unwrap_or(sia_schema_core::error::Span::new(0, 0));
+                let (fl, fc) = line_index.line_col(field_span.offset);
+                let fr = Range {
+                    start: Position::new(fl as u32, fc as u32),
+                    end: Position::new(fl as u32, (fc + field_span.length) as u32),
                 };
 
-                let children: Vec<DocumentSymbol> = s
-                    .fields
-                    .iter()
-                    .enumerate()
-                    .map(|(i, f)| {
-                        let field_span = schema_sym
-                            .and_then(|sy| sy.fields.get(i))
-                            .map(|fs| fs.span)
-                            .unwrap_or(sia_schema_core::error::Span::new(0, 0));
-                        let (fl, fc) = line_index.line_col(field_span.offset);
-                        let fr = Range {
-                            start: Position::new(fl as u32, fc as u32),
-                            end: Position::new(fl as u32, (fc + field_span.length) as u32),
-                        };
-
-                        #[allow(deprecated)]
-                        DocumentSymbol {
-                            name: f.name.clone(),
-                            detail: Some(f.field_type.clone()),
-                            kind: SymbolKind::FIELD,
-                            range: fr,
-                            selection_range: fr,
-                            children: None,
-                            tags: None,
-                            deprecated: None,
-                        }
-                    })
-                    .collect();
-
                 #[allow(deprecated)]
-                symbols.push(DocumentSymbol {
-                    name: s.name.clone(),
-                    detail: Some("schema".into()),
-                    kind: SymbolKind::STRUCT,
-                    range,
-                    selection_range: range,
-                    children: Some(children),
+                DocumentSymbol {
+                    name: f.name.clone(),
+                    detail: Some(f.field_type.clone()),
+                    kind: SymbolKind::FIELD,
+                    range: fr,
+                    selection_range: fr,
+                    children: None,
                     tags: None,
                     deprecated: None,
-                });
-            }
-            Definition::Plugin(p) => {
-                let plugin_sym = symbol_table.plugins.get(&p.alias);
-                let name_span = plugin_sym
-                    .map(|ps| ps.name_span)
-                    .unwrap_or(sia_schema_core::error::Span::new(0, 0));
-                let (line, col) = line_index.line_col(name_span.offset);
+                }
+            })
+            .collect();
 
-                let range = Range {
-                    start: Position::new(line as u32, col as u32),
-                    end: Position::new(line as u32, (col + name_span.length) as u32),
-                };
-
-                let children: Vec<DocumentSymbol> = p
-                    .methods
-                    .iter()
-                    .enumerate()
-                    .map(|(i, m)| {
-                        let method_span = plugin_sym
-                            .and_then(|ps| ps.methods.get(i))
-                            .map(|ms| ms.span)
-                            .unwrap_or(sia_schema_core::error::Span::new(0, 0));
-                        let (ml, mc) = line_index.line_col(method_span.offset);
-                        let mr = Range {
-                            start: Position::new(ml as u32, mc as u32),
-                            end: Position::new(ml as u32, (mc + method_span.length) as u32),
-                        };
-
-                        #[allow(deprecated)]
-                        DocumentSymbol {
-                            name: m.name.clone(),
-                            detail: Some("method".into()),
-                            kind: SymbolKind::METHOD,
-                            range: mr,
-                            selection_range: mr,
-                            children: None,
-                            tags: None,
-                            deprecated: None,
-                        }
-                    })
-                    .collect();
-
-                #[allow(deprecated)]
-                symbols.push(DocumentSymbol {
-                    name: p.alias.clone(),
-                    detail: Some(format!("plugin {}", p.name)),
-                    kind: SymbolKind::CLASS,
-                    range,
-                    selection_range: range,
-                    children: Some(children),
-                    tags: None,
-                    deprecated: None,
-                });
-            }
-        }
+        #[allow(deprecated)]
+        symbols.push(DocumentSymbol {
+            name: s.name.clone(),
+            detail: Some("schema".into()),
+            kind: SymbolKind::STRUCT,
+            range,
+            selection_range: range,
+            children: Some(children),
+            tags: None,
+            deprecated: None,
+        });
     }
 
     symbols
@@ -506,17 +389,10 @@ pub fn format_document(source: &str) -> Vec<TextEdit> {
 enum CompletionContext {
     TopLevel,
     FieldType,
-    InsidePlugin,
     /// Inside parentheses after a field type, e.g. `string8(|)`
     FieldOptionKey,
     /// After `=` inside field type options, e.g. `string8(encoding = |)`
     FieldOptionValue {
-        key: String,
-    },
-    /// Inside parentheses after a method name, e.g. `method foo(|)`
-    MethodOptionKey,
-    /// After `=` inside method options, e.g. `method foo(timeout = |)`
-    MethodOptionValue {
         key: String,
     },
     Unknown,
@@ -528,10 +404,6 @@ fn determine_context(source: &str, offset: usize) -> CompletionContext {
     // Count brace and paren depth
     let mut brace_depth = 0i32;
     let mut paren_depth = 0i32;
-    let mut last_keyword = None;
-    let mut in_plugin = false;
-    // Track whether we're inside a method declaration (at plugin depth + 1)
-    let mut in_method_decl = false;
     // Track the position where the current paren group opened
     let mut paren_open_pos = 0usize;
 
@@ -539,16 +411,9 @@ fn determine_context(source: &str, offset: usize) -> CompletionContext {
         match ch {
             '{' => {
                 brace_depth += 1;
-                if last_keyword == Some("plugin") {
-                    in_plugin = true;
-                }
-                in_method_decl = false;
             }
             '}' => {
                 brace_depth -= 1;
-                if brace_depth == 0 {
-                    in_plugin = false;
-                }
             }
             '(' => {
                 paren_depth += 1;
@@ -559,38 +424,16 @@ fn determine_context(source: &str, offset: usize) -> CompletionContext {
             }
             _ => {}
         }
-
-        // Track keywords (simple heuristic: word boundary check)
-        if ch.is_ascii_alphabetic() {
-            if i + 6 <= before.len()
-                && &before[i..i + 6] == "schema"
-                && (i == 0 || !before.as_bytes()[i - 1].is_ascii_alphanumeric())
-            {
-                last_keyword = Some("schema");
-            } else if i + 6 <= before.len()
-                && &before[i..i + 6] == "plugin"
-                && (i == 0 || !before.as_bytes()[i - 1].is_ascii_alphanumeric())
-            {
-                last_keyword = Some("plugin");
-            } else if i + 6 <= before.len()
-                && &before[i..i + 6] == "method"
-                && (i == 0 || !before.as_bytes()[i - 1].is_ascii_alphanumeric())
-            {
-                in_method_decl = true;
-            }
-        }
     }
 
-    // If we're inside parentheses, determine if it's field options or method options
+    // If we're inside parentheses, determine if it's field options
     if paren_depth > 0 {
         let inside_parens = &before[paren_open_pos + 1..];
-        return determine_paren_context(inside_parens, in_method_decl);
+        return determine_paren_context(inside_parens);
     }
 
     if brace_depth == 0 {
         CompletionContext::TopLevel
-    } else if in_plugin && brace_depth == 1 {
-        CompletionContext::InsidePlugin
     } else if brace_depth >= 1 {
         CompletionContext::FieldType
     } else {
@@ -600,8 +443,7 @@ fn determine_context(source: &str, offset: usize) -> CompletionContext {
 
 /// Determine completion context when cursor is inside parentheses.
 /// `inside` is the text between the opening `(` and the cursor.
-/// `is_method` is true if the parens follow a `method` keyword.
-fn determine_paren_context(inside: &str, is_method: bool) -> CompletionContext {
+fn determine_paren_context(inside: &str) -> CompletionContext {
     let trimmed = inside.trim();
 
     // Check if we're after an `=` sign (suggesting a value)
@@ -630,13 +472,7 @@ fn determine_paren_context(inside: &str, is_method: bool) -> CompletionContext {
             .trim()
             .to_string();
 
-        if is_method {
-            CompletionContext::MethodOptionValue { key }
-        } else {
-            CompletionContext::FieldOptionValue { key }
-        }
-    } else if is_method {
-        CompletionContext::MethodOptionKey
+        CompletionContext::FieldOptionValue { key }
     } else {
         CompletionContext::FieldOptionKey
     }

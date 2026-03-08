@@ -39,15 +39,11 @@ enum Line<'a> {
     Blank,
     /// Line comment (// ...)
     Comment { text: &'a str },
-    /// Definition header: `schema Foo {` or `plugin ... as Bar {`
+    /// Definition header: `schema Foo {`
     DefOpen { text: String },
-    /// `} returns {` continuation in method blocks
-    ReturnsOpen,
     /// Closing brace `}`
     Close,
-    /// `method name(options) {`
-    MethodOpen { text: String },
-    /// A field line inside a schema or method block
+    /// A field line inside a schema block
     Field(FieldLine<'a>),
     /// Anything else — preserved as-is (trimmed + re-indented)
     Other { text: &'a str },
@@ -85,26 +81,10 @@ fn classify_lines<'a>(lines: &[&'a str]) -> Vec<Line<'a>> {
             continue;
         }
 
-        // `} returns {`
-        if trimmed == "} returns {" {
-            result.push(Line::ReturnsOpen);
-            continue;
-        }
-
-        // Definition headers: `schema Name {` or `plugin ... as Name {`
-        if (trimmed.starts_with("schema ") || trimmed.starts_with("plugin "))
-            && trimmed.ends_with('{')
-        {
+        // Definition header: `schema Name {`
+        if trimmed.starts_with("schema ") && trimmed.ends_with('{') {
             result.push(Line::DefOpen {
                 text: normalize_def_header(trimmed),
-            });
-            continue;
-        }
-
-        // Method header: `method name(options) {`
-        if trimmed.starts_with("method ") && trimmed.ends_with('{') {
-            result.push(Line::MethodOpen {
-                text: normalize_method_header(trimmed),
             });
             continue;
         }
@@ -126,7 +106,7 @@ fn classify_lines<'a>(lines: &[&'a str]) -> Vec<Line<'a>> {
 }
 
 /// Normalize a definition header to canonical form.
-/// E.g., `schema   Foo   {` → `schema Foo {`
+/// E.g., `schema   Foo   {` -> `schema Foo {`
 fn normalize_def_header(s: &str) -> String {
     // Remove trailing `{`, normalize spaces, re-add `{`
     let without_brace = s.strip_suffix('{').unwrap_or(s).trim();
@@ -134,27 +114,7 @@ fn normalize_def_header(s: &str) -> String {
     format!("{} {{", parts.join(" "))
 }
 
-/// Normalize a method header to canonical form.
-/// Preserves options in parens but normalizes surrounding whitespace.
-fn normalize_method_header(s: &str) -> String {
-    let without_brace = s.strip_suffix('{').unwrap_or(s).trim();
-
-    // Find the paren group if present
-    if let Some(paren_start) = without_brace.find('(') {
-        let before_paren = without_brace[..paren_start].trim();
-        let paren_part = &without_brace[paren_start..];
-        // Normalize spaces before paren
-        let parts: Vec<&str> = before_paren.split_whitespace().collect();
-        // Normalize option spacing inside parens
-        let normalized_opts = normalize_options(paren_part);
-        format!("{}{} {{", parts.join(" "), normalized_opts)
-    } else {
-        let parts: Vec<&str> = without_brace.split_whitespace().collect();
-        format!("{} {{", parts.join(" "))
-    }
-}
-
-/// Normalize option parentheses: `( encoding = "ascii" , length = 32 )` → `(encoding = "ascii", length = 32)`
+/// Normalize option parentheses: `( encoding = "ascii" , length = 32 )` -> `(encoding = "ascii", length = 32)`
 fn normalize_options(s: &str) -> String {
     let inner = s
         .trim()
@@ -195,15 +155,12 @@ fn is_field_line(trimmed: &str) -> bool {
     }
     // Must not be a keyword that opens a block
     let first_word = trimmed.split_whitespace().next().unwrap_or("");
-    !matches!(
-        first_word,
-        "schema" | "plugin" | "method" | "returns" | "as"
-    )
+    first_word != "schema"
 }
 
 /// Parse a field line into name and rest components.
 /// Input (trimmed): `name?  string8(encoding = "ascii")[] = "default"`
-/// → name = `name?`, rest = `string8(encoding = "ascii")[] = "default"`
+/// -> name = `name?`, rest = `string8(encoding = "ascii")[] = "default"`
 fn parse_field_line<'a>(trimmed: &'a str) -> Option<FieldLine<'a>> {
     // Find the boundary between name and type.
     // Name is: identifier chars + optional `?`
@@ -288,30 +245,6 @@ fn emit(lines: &[Line], opts: &FormatOptions) -> String {
                 }
                 out.push_str(text);
                 out.push('\n');
-                depth += 1;
-                prev_was_blank = false;
-                prev_was_def_or_close = false;
-                i += 1;
-            }
-
-            Line::MethodOpen { text } => {
-                for _ in 0..depth {
-                    out.push_str(&indent_str);
-                }
-                out.push_str(text);
-                out.push('\n');
-                depth += 1;
-                prev_was_blank = false;
-                prev_was_def_or_close = false;
-                i += 1;
-            }
-
-            Line::ReturnsOpen => {
-                depth = depth.saturating_sub(1);
-                for _ in 0..depth {
-                    out.push_str(&indent_str);
-                }
-                out.push_str("} returns {\n");
                 depth += 1;
                 prev_was_blank = false;
                 prev_was_def_or_close = false;
@@ -544,13 +477,6 @@ mod tests {
     }
 
     #[test]
-    fn test_method_formatting() {
-        let input = "plugin a.b as Foo {\n  method bar( timeout = 5000 ) {\n    name string8\n  } returns {\n    ok bool\n  }\n}\n";
-        let expected = "plugin a.b as Foo {\n  method bar(timeout = 5000) {\n    name  string8\n  } returns {\n    ok  bool\n  }\n}\n";
-        assert_eq!(format(input), expected);
-    }
-
-    #[test]
     fn test_brace_style_enforcement() {
         // Extra spaces around brace
         let input = "schema   Foo   {\n  name string8\n}\n";
@@ -560,7 +486,7 @@ mod tests {
 
     #[test]
     fn test_idempotency() {
-        let input = "schema Person {\n  name    string8\n  age?    int32\n  email?  string8(encoding = \"ascii\")[]\n  tags    string8[]\n  address Address\n}\n\nschema Address {\n  street?  string(encoding = \"ascii\") = \"Default Street\"\n  city     string8\n  zip      int32\n}\n\nplugin swiss.timeleap.isWizard.v1 as Sorcery {\n  method isWizard(timeout = 5000) {\n    age       uint8\n    name      string8\n  } returns {\n    isWizard  bool\n    message   string8\n  }\n}\n";
+        let input = "schema Person {\n  name    string8\n  age?    int32\n  email?  string8(encoding = \"ascii\")[]\n  tags    string8[]\n  address Address\n}\n\nschema Address {\n  street?  string(encoding = \"ascii\") = \"Default Street\"\n  city     string8\n  zip      int32\n}\n";
         let once = format(input);
         let twice = format(&once);
         assert_eq!(once, twice, "Formatter is not idempotent");

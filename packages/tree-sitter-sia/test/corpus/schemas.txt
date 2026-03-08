@@ -132,3 +132,56 @@ schema Foo {
           (array_marker))
         (default_value
           (string_literal))))))
+
+================================================================================
+Comment
+================================================================================
+
+// This is a comment
+schema Foo {
+  // Another comment
+  name string8
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (comment)
+  (schema_definition
+    name: (identifier)
+    (schema_body
+      (comment)
+      (field_definition
+        name: (identifier)
+        type: (type_expression
+          (identifier))))))
+
+================================================================================
+Multiple definitions
+================================================================================
+
+schema A {
+  x int32
+}
+
+schema B {
+  y bool
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (schema_definition
+    name: (identifier)
+    (schema_body
+      (field_definition
+        name: (identifier)
+        type: (type_expression
+          (identifier)))))
+  (schema_definition
+    name: (identifier)
+    (schema_body
+      (field_definition
+        name: (identifier)
+        type: (type_expression
+          (identifier))))))

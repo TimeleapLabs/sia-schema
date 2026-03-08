@@ -1,26 +1,12 @@
 ; Keywords
 "schema" @keyword
-"plugin" @keyword
-"as" @keyword
-"method" @keyword
-"returns" @keyword
 
 ; Boolean literals
 (boolean_literal) @boolean
 
-; Schema and plugin names
+; Schema names
 (schema_definition
   name: (identifier) @type)
-
-(plugin_definition
-  alias: (identifier) @type)
-
-(plugin_definition
-  name: (dotted_name) @module)
-
-; Method names
-(method_definition
-  name: (identifier) @function)
 
 ; Field names
 (field_definition
@@ -52,7 +38,6 @@
 (optional_marker) @operator
 (array_marker) @punctuation.bracket
 "=" @operator
-"." @punctuation.delimiter
 "," @punctuation.delimiter
 "{" @punctuation.bracket
 "}" @punctuation.bracket

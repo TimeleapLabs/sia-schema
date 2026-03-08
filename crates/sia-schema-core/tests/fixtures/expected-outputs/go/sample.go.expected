@@ -84,10 +84,6 @@ func (p *SampleAddress) FromSia(s sia.Sia) *SampleAddress {
   return p
 }
 
-// Cannot generate plugin 'swiss.timeleap.isWizard.v1' due to lack of RPC support in the Go Sia generator.
-// You must connect to this plugin manually via RPC.
-// https://timeleap.swiss/docs/products/sia/highlevel#rpc
-
 func (p *Sample) FromSiaBytes(bytes []byte) *Sample {
   s := sia.NewFromBytes(bytes)
  	return p.FromSia(s)

@@ -8,20 +8,20 @@ pub mod parser;
 
 use error::Diagnostic;
 use gen::Target;
-use ir::Definition;
+use ir::SchemaDefinition;
 
-/// Parse a `.sia` source string into definitions and diagnostics.
+/// Parse a `.sia` source string into schema definitions and diagnostics.
 ///
 /// Returns definitions even if there are diagnostics (for partial results).
-pub fn parse(source: &str) -> (Vec<Definition>, Vec<Diagnostic>) {
+pub fn parse(source: &str) -> (Vec<SchemaDefinition>, Vec<Diagnostic>) {
     let (tokens, mut lex_diagnostics) = lexer::tokenize(source);
     let parse_result = parser::Parser::new(tokens).parse();
     lex_diagnostics.extend(parse_result.diagnostics);
     (parse_result.definitions, lex_diagnostics)
 }
 
-/// Generate code for the given target language from definitions.
-pub fn generate(definitions: &[Definition], target: Target) -> String {
+/// Generate code for the given target language from schema definitions.
+pub fn generate(definitions: &[SchemaDefinition], target: Target) -> String {
     match target {
         Target::TypeScript => gen::typescript::generate(definitions),
         Target::Go => gen::go::generate(definitions),
@@ -36,7 +36,7 @@ pub struct CppOutput {
     pub cpp: String,
 }
 
-pub fn generate_cpp(definitions: &[Definition], file_name: &str) -> CppOutput {
+pub fn generate_cpp(definitions: &[SchemaDefinition], file_name: &str) -> CppOutput {
     let (hpp, cpp) = gen::cpp::generate(definitions, file_name);
     CppOutput { hpp, cpp }
 }

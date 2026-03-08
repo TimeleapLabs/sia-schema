@@ -56,14 +56,6 @@ impl std::fmt::Display for Value {
     }
 }
 
-/// A top-level definition: either a schema or a plugin.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum Definition {
-    Schema(SchemaDefinition),
-    Plugin(PluginDefinition),
-}
-
 /// A schema definition with fields.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemaDefinition {
@@ -71,16 +63,7 @@ pub struct SchemaDefinition {
     pub fields: Vec<FieldDefinition>,
 }
 
-/// A plugin definition with methods.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginDefinition {
-    pub name: String,
-    #[serde(rename = "as")]
-    pub alias: String,
-    pub methods: Vec<MethodDefinition>,
-}
-
-/// A field definition within a schema or method.
+/// A field definition within a schema.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldDefinition {
     pub name: String,
@@ -104,80 +87,6 @@ pub struct FieldDefinition {
     /// These are flattened into the JSON output for TS compatibility.
     #[serde(flatten, default, skip_serializing_if = "HashMap::is_empty")]
     pub options: HashMap<String, Value>,
-}
-
-/// Method parameters: either inline fields or a type reference.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum MethodParams {
-    Fields(Vec<FieldDefinition>),
-    Reference(FieldDefinition),
-}
-
-impl MethodParams {
-    pub fn fields(&self) -> Vec<&FieldDefinition> {
-        match self {
-            MethodParams::Fields(fields) => fields.iter().collect(),
-            MethodParams::Reference(field) => vec![field],
-        }
-    }
-
-    pub fn into_fields(self) -> Vec<FieldDefinition> {
-        match self {
-            MethodParams::Fields(fields) => fields,
-            MethodParams::Reference(field) => vec![field],
-        }
-    }
-}
-
-/// A method definition within a plugin.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MethodDefinition {
-    pub name: String,
-    pub fields: MethodParams,
-    pub returns: MethodParams,
-    /// Method options like timeout, fee, currency.
-    /// These are flattened into the JSON output for TS compatibility.
-    #[serde(flatten, default, skip_serializing_if = "HashMap::is_empty")]
-    pub options: HashMap<String, Value>,
-}
-
-impl MethodDefinition {
-    /// Get the timeout value, defaulting to "5000".
-    pub fn timeout(&self) -> &str {
-        self.options
-            .get("timeout")
-            .and_then(|v| v.as_str())
-            .unwrap_or("5000")
-    }
-
-    /// Get the timeout as a number, defaulting to 5000.
-    pub fn timeout_num(&self) -> i64 {
-        self.options
-            .get("timeout")
-            .and_then(|v| match v {
-                Value::String(s) => s.parse().ok(),
-                Value::Number(n) => Some(*n as i64),
-                _ => None,
-            })
-            .unwrap_or(5000)
-    }
-
-    /// Get the fee, defaulting to 0.
-    pub fn fee(&self) -> i64 {
-        self.options
-            .get("fee")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0)
-    }
-
-    /// Get the currency, defaulting to "TLP".
-    pub fn currency(&self) -> &str {
-        self.options
-            .get("currency")
-            .and_then(|v| v.as_str())
-            .unwrap_or("TLP")
-    }
 }
 
 // -- Type classification helpers --

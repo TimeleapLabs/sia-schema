@@ -9,8 +9,6 @@ fn test_format_sample_sia() {
 
     // The sample.sia is already well-formatted, so the output should match
     // (or be very close — alignment may adjust slightly)
-    // Each field block is aligned independently — the method request body
-    // (age, name) aligns separately from the returns body (isWizard, message).
     let expected = "\
 schema Person {
   name     string8
@@ -24,16 +22,6 @@ schema Address {
   street?  string(encoding = \"ascii\") = \"Default Street\"
   city     string8
   zip      int32
-}
-
-plugin swiss.timeleap.isWizard.v1 as Sorcery {
-  method isWizard(timeout = 5000) {
-    age   uint8
-    name  string8
-  } returns {
-    isWizard  bool
-    message   string8
-  }
 }
 ";
 

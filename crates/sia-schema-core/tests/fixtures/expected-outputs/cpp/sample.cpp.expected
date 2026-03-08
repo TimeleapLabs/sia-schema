@@ -44,7 +44,3 @@ SampleAddress decodeSampleAddress(std::shared_ptr<sia::Sia> sia) {
   result.zip = sia->ReadInt32();
   return result;
 }
-
-// Plugin 'swiss.timeleap.isWizard.v1' is not supported in C++ generator.
-// RPC support must be implemented manually.
-// See: https://timeleap.swiss/docs/products/sia/highlevel#rpc

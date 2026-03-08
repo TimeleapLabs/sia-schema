@@ -1,6 +1,6 @@
 //! Sia schema linter — semantic checks beyond parse errors.
 //!
-//! All lint rules operate on the parsed IR (`Definition` list) and produce
+//! All lint rules operate on the parsed IR (`SchemaDefinition` list) and produce
 //! `LintDiagnostic` values with severity, message, and source span.
 
 use std::collections::{HashMap, HashSet};
@@ -24,7 +24,6 @@ pub struct LintDiagnostic {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LintRule {
     DuplicateSchemaName,
-    DuplicatePluginAlias,
     DuplicateFieldName,
     UndefinedTypeRef,
     UnusedSchema,
@@ -38,7 +37,6 @@ impl std::fmt::Display for LintRule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LintRule::DuplicateSchemaName => write!(f, "duplicate-schema"),
-            LintRule::DuplicatePluginAlias => write!(f, "duplicate-plugin"),
             LintRule::DuplicateFieldName => write!(f, "duplicate-field"),
             LintRule::UndefinedTypeRef => write!(f, "undefined-type"),
             LintRule::UnusedSchema => write!(f, "unused-schema"),
@@ -55,11 +53,10 @@ impl std::fmt::Display for LintRule {
 /// `source` is the original source text, used to locate spans for symbols
 /// that don't carry spans in the IR. (The IR currently doesn't store spans;
 /// we locate identifiers by searching the source text.)
-pub fn lint(definitions: &[Definition], source: &str) -> Vec<LintDiagnostic> {
+pub fn lint(definitions: &[SchemaDefinition], source: &str) -> Vec<LintDiagnostic> {
     let mut diagnostics = Vec::new();
 
     check_duplicate_schemas(definitions, source, &mut diagnostics);
-    check_duplicate_plugin_aliases(definitions, source, &mut diagnostics);
     check_duplicate_fields(definitions, source, &mut diagnostics);
     check_undefined_types(definitions, source, &mut diagnostics);
     check_unused_schemas(definitions, source, &mut diagnostics);
@@ -76,130 +73,51 @@ pub fn lint(definitions: &[Definition], source: &str) -> Vec<LintDiagnostic> {
 // ---------------------------------------------------------------------------
 
 fn check_duplicate_schemas(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     source: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
     let mut seen: HashMap<&str, Span> = HashMap::new();
     let mut search_from = 0usize;
 
-    for def in definitions {
-        if let Definition::Schema(s) = def {
-            let span = find_keyword_then_name(source, "schema", &s.name, search_from)
-                .unwrap_or(Span::new(0, s.name.len()));
+    for s in definitions {
+        let span = find_keyword_then_name(source, "schema", &s.name, search_from)
+            .unwrap_or(Span::new(0, s.name.len()));
 
-            if seen.contains_key(s.name.as_str()) {
-                diags.push(LintDiagnostic {
-                    severity: Severity::Error,
-                    message: format!("Duplicate schema name: '{}'", s.name),
-                    span,
-                    rule: LintRule::DuplicateSchemaName,
-                });
-            } else {
-                seen.insert(&s.name, span);
-            }
-
-            search_from = span.end();
+        if seen.contains_key(s.name.as_str()) {
+            diags.push(LintDiagnostic {
+                severity: Severity::Error,
+                message: format!("Duplicate schema name: '{}'", s.name),
+                span,
+                rule: LintRule::DuplicateSchemaName,
+            });
+        } else {
+            seen.insert(&s.name, span);
         }
+
+        search_from = span.end();
     }
 }
 
 // ---------------------------------------------------------------------------
-// Rule: Duplicate plugin aliases
-// ---------------------------------------------------------------------------
-
-fn check_duplicate_plugin_aliases(
-    definitions: &[Definition],
-    source: &str,
-    diags: &mut Vec<LintDiagnostic>,
-) {
-    let mut seen: HashMap<&str, Span> = HashMap::new();
-    let mut search_from = 0usize;
-
-    for def in definitions {
-        if let Definition::Plugin(p) = def {
-            let span = find_identifier(source, &p.alias, search_from)
-                .unwrap_or(Span::new(0, p.alias.len()));
-
-            if seen.contains_key(p.alias.as_str()) {
-                diags.push(LintDiagnostic {
-                    severity: Severity::Error,
-                    message: format!("Duplicate plugin alias: '{}'", p.alias),
-                    span,
-                    rule: LintRule::DuplicatePluginAlias,
-                });
-            } else {
-                seen.insert(&p.alias, span);
-            }
-
-            search_from = span.end();
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Rule: Duplicate field names within a block
+// Rule: Duplicate field names within a schema
 // ---------------------------------------------------------------------------
 
 fn check_duplicate_fields(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     source: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
-    for def in definitions {
-        match def {
-            Definition::Schema(s) => {
-                let block_start = find_identifier(source, &s.name, 0)
-                    .map(|sp| sp.end())
-                    .unwrap_or(0);
-                check_field_list_duplicates(&s.fields, &s.name, source, block_start, diags);
-            }
-            Definition::Plugin(p) => {
-                for method in &p.methods {
-                    let method_start = find_identifier(source, &method.name, 0)
-                        .map(|sp| sp.end())
-                        .unwrap_or(0);
-
-                    let request_fields = method.fields.fields();
-                    check_field_slice_duplicates(
-                        &request_fields,
-                        &format!("{}.{} (request)", p.alias, method.name),
-                        source,
-                        method_start,
-                        diags,
-                    );
-
-                    let return_fields = method.returns.fields();
-                    // returns block starts after request block
-                    let returns_start = find_identifier(source, "returns", method_start)
-                        .map(|sp| sp.end())
-                        .unwrap_or(method_start);
-                    check_field_slice_duplicates(
-                        &return_fields,
-                        &format!("{}.{} (returns)", p.alias, method.name),
-                        source,
-                        returns_start,
-                        diags,
-                    );
-                }
-            }
-        }
+    for s in definitions {
+        let block_start = find_identifier(source, &s.name, 0)
+            .map(|sp| sp.end())
+            .unwrap_or(0);
+        check_field_list_duplicates(&s.fields, &s.name, source, block_start, diags);
     }
 }
 
 fn check_field_list_duplicates(
     fields: &[FieldDefinition],
-    context: &str,
-    source: &str,
-    start: usize,
-    diags: &mut Vec<LintDiagnostic>,
-) {
-    let refs: Vec<&FieldDefinition> = fields.iter().collect();
-    check_field_slice_duplicates(&refs, context, source, start, diags);
-}
-
-fn check_field_slice_duplicates(
-    fields: &[&FieldDefinition],
     context: &str,
     source: &str,
     start: usize,
@@ -230,36 +148,16 @@ fn check_field_slice_duplicates(
 // ---------------------------------------------------------------------------
 
 fn check_undefined_types(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     source: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
     // Collect all defined schema names
-    let schema_names: HashSet<&str> = definitions
-        .iter()
-        .filter_map(|d| match d {
-            Definition::Schema(s) => Some(s.name.as_str()),
-            _ => None,
-        })
-        .collect();
+    let schema_names: HashSet<&str> = definitions.iter().map(|s| s.name.as_str()).collect();
 
-    // Check all field types across schemas and plugins
-    for def in definitions {
-        let fields: Vec<&FieldDefinition> = match def {
-            Definition::Schema(s) => s.fields.iter().collect(),
-            Definition::Plugin(p) => p
-                .methods
-                .iter()
-                .flat_map(|m| {
-                    m.fields
-                        .fields()
-                        .into_iter()
-                        .chain(m.returns.fields().into_iter())
-                })
-                .collect(),
-        };
-
-        for field in fields {
+    // Check all field types
+    for s in definitions {
+        for field in &s.fields {
             if is_custom_type(&field.field_type)
                 && !schema_names.contains(field.field_type.as_str())
             {
@@ -283,26 +181,16 @@ fn check_undefined_types(
 // Rule: Unused schemas
 // ---------------------------------------------------------------------------
 
-fn check_unused_schemas(definitions: &[Definition], source: &str, diags: &mut Vec<LintDiagnostic>) {
+fn check_unused_schemas(
+    definitions: &[SchemaDefinition],
+    source: &str,
+    diags: &mut Vec<LintDiagnostic>,
+) {
     // Collect all type references
     let mut referenced: HashSet<&str> = HashSet::new();
 
-    for def in definitions {
-        let fields: Vec<&FieldDefinition> = match def {
-            Definition::Schema(s) => s.fields.iter().collect(),
-            Definition::Plugin(p) => p
-                .methods
-                .iter()
-                .flat_map(|m| {
-                    m.fields
-                        .fields()
-                        .into_iter()
-                        .chain(m.returns.fields().into_iter())
-                })
-                .collect(),
-        };
-
-        for field in fields {
+    for s in definitions {
+        for field in &s.fields {
             if is_custom_type(&field.field_type) {
                 referenced.insert(&field.field_type);
             }
@@ -310,21 +198,19 @@ fn check_unused_schemas(definitions: &[Definition], source: &str, diags: &mut Ve
     }
 
     // Check each schema — if it's never referenced, warn
-    for def in definitions {
-        if let Definition::Schema(s) = def {
-            if !referenced.contains(s.name.as_str()) {
-                let span = find_keyword_then_name(source, "schema", &s.name, 0)
-                    .unwrap_or(Span::new(0, s.name.len()));
-                diags.push(LintDiagnostic {
-                    severity: Severity::Info,
-                    message: format!(
-                        "Schema '{}' is defined but never referenced by any other definition.",
-                        s.name
-                    ),
-                    span,
-                    rule: LintRule::UnusedSchema,
-                });
-            }
+    for s in definitions {
+        if !referenced.contains(s.name.as_str()) {
+            let span = find_keyword_then_name(source, "schema", &s.name, 0)
+                .unwrap_or(Span::new(0, s.name.len()));
+            diags.push(LintDiagnostic {
+                severity: Severity::Info,
+                message: format!(
+                    "Schema '{}' is defined but never referenced by any other definition.",
+                    s.name
+                ),
+                span,
+                rule: LintRule::UnusedSchema,
+            });
         }
     }
 }
@@ -349,7 +235,7 @@ fn valid_options_for_type(field_type: &str) -> &'static [&'static str] {
 }
 
 fn check_invalid_options(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     source: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
@@ -417,7 +303,7 @@ fn check_invalid_options(
 // ---------------------------------------------------------------------------
 
 fn check_invalid_defaults(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     source: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
@@ -467,76 +353,30 @@ fn check_invalid_defaults(
 // ---------------------------------------------------------------------------
 
 fn check_naming_conventions(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     source: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
-    for def in definitions {
-        match def {
-            Definition::Schema(s) => {
-                // Schema names should be PascalCase
-                if !is_pascal_case(&s.name) {
-                    let span = find_keyword_then_name(source, "schema", &s.name, 0)
-                        .unwrap_or(Span::new(0, s.name.len()));
-                    diags.push(LintDiagnostic {
-                        severity: Severity::Info,
-                        message: format!(
-                            "Schema name '{}' should be PascalCase (e.g., '{}').",
-                            s.name,
-                            to_pascal_case(&s.name)
-                        ),
-                        span,
-                        rule: LintRule::NamingConvention,
-                    });
-                }
+    for s in definitions {
+        // Schema names should be PascalCase
+        if !is_pascal_case(&s.name) {
+            let span = find_keyword_then_name(source, "schema", &s.name, 0)
+                .unwrap_or(Span::new(0, s.name.len()));
+            diags.push(LintDiagnostic {
+                severity: Severity::Info,
+                message: format!(
+                    "Schema name '{}' should be PascalCase (e.g., '{}').",
+                    s.name,
+                    to_pascal_case(&s.name)
+                ),
+                span,
+                rule: LintRule::NamingConvention,
+            });
+        }
 
-                // Field names should be camelCase
-                for field in &s.fields {
-                    check_field_naming(field, source, diags);
-                }
-            }
-            Definition::Plugin(p) => {
-                // Plugin alias should be PascalCase
-                if !is_pascal_case(&p.alias) {
-                    let span =
-                        find_identifier(source, &p.alias, 0).unwrap_or(Span::new(0, p.alias.len()));
-                    diags.push(LintDiagnostic {
-                        severity: Severity::Info,
-                        message: format!(
-                            "Plugin alias '{}' should be PascalCase (e.g., '{}').",
-                            p.alias,
-                            to_pascal_case(&p.alias)
-                        ),
-                        span,
-                        rule: LintRule::NamingConvention,
-                    });
-                }
-
-                for method in &p.methods {
-                    // Method names should be camelCase
-                    if !is_camel_case(&method.name) {
-                        let span = find_identifier(source, &method.name, 0)
-                            .unwrap_or(Span::new(0, method.name.len()));
-                        diags.push(LintDiagnostic {
-                            severity: Severity::Info,
-                            message: format!(
-                                "Method name '{}' should be camelCase (e.g., '{}').",
-                                method.name,
-                                to_camel_case(&method.name)
-                            ),
-                            span,
-                            rule: LintRule::NamingConvention,
-                        });
-                    }
-
-                    for field in method.fields.fields() {
-                        check_field_naming(field, source, diags);
-                    }
-                    for field in method.returns.fields() {
-                        check_field_naming(field, source, diags);
-                    }
-                }
-            }
+        // Field names should be camelCase
+        for field in &s.fields {
+            check_field_naming(field, source, diags);
         }
     }
 }
@@ -628,33 +468,20 @@ fn to_camel_case(s: &str) -> String {
 // ---------------------------------------------------------------------------
 
 fn check_empty_definitions(
-    definitions: &[Definition],
+    definitions: &[SchemaDefinition],
     source: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
-    for def in definitions {
-        match def {
-            Definition::Schema(s) if s.fields.is_empty() => {
-                let span = find_keyword_then_name(source, "schema", &s.name, 0)
-                    .unwrap_or(Span::new(0, s.name.len()));
-                diags.push(LintDiagnostic {
-                    severity: Severity::Warning,
-                    message: format!("Schema '{}' has no fields.", s.name),
-                    span,
-                    rule: LintRule::EmptyDefinition,
-                });
-            }
-            Definition::Plugin(p) if p.methods.is_empty() => {
-                let span =
-                    find_identifier(source, &p.alias, 0).unwrap_or(Span::new(0, p.alias.len()));
-                diags.push(LintDiagnostic {
-                    severity: Severity::Warning,
-                    message: format!("Plugin '{}' has no methods.", p.alias),
-                    span,
-                    rule: LintRule::EmptyDefinition,
-                });
-            }
-            _ => {}
+    for s in definitions {
+        if s.fields.is_empty() {
+            let span = find_keyword_then_name(source, "schema", &s.name, 0)
+                .unwrap_or(Span::new(0, s.name.len()));
+            diags.push(LintDiagnostic {
+                severity: Severity::Warning,
+                message: format!("Schema '{}' has no fields.", s.name),
+                span,
+                rule: LintRule::EmptyDefinition,
+            });
         }
     }
 }
@@ -663,21 +490,11 @@ fn check_empty_definitions(
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Collect all fields from all definitions (schemas + plugin methods).
-fn collect_all_fields(definitions: &[Definition]) -> Vec<&FieldDefinition> {
+/// Collect all fields from all schemas.
+fn collect_all_fields(definitions: &[SchemaDefinition]) -> Vec<&FieldDefinition> {
     let mut fields = Vec::new();
-    for def in definitions {
-        match def {
-            Definition::Schema(s) => {
-                fields.extend(s.fields.iter());
-            }
-            Definition::Plugin(p) => {
-                for method in &p.methods {
-                    fields.extend(method.fields.fields());
-                    fields.extend(method.returns.fields());
-                }
-            }
-        }
+    for s in definitions {
+        fields.extend(s.fields.iter());
     }
     fields
 }
@@ -838,14 +655,6 @@ mod tests {
     fn test_empty_schema() {
         let diags = lint_source("schema Foo {\n}\n");
         assert!(has_rule(&diags, LintRule::EmptyDefinition));
-    }
-
-    #[test]
-    fn test_duplicate_plugin_alias() {
-        let diags = lint_source(
-            "plugin a.b as Foo {\n  method x {\n    a uint8\n  } returns {\n    b uint8\n  }\n}\nplugin c.d as Foo {\n  method y {\n    a uint8\n  } returns {\n    b uint8\n  }\n}\n",
-        );
-        assert!(has_rule(&diags, LintRule::DuplicatePluginAlias));
     }
 
     #[test]

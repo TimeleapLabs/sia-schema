@@ -24,7 +24,7 @@ pub fn compile(source: &str) -> Result<JsValue, JsValue> {
 /// `target` should be one of: "ts", "go", "py", "cpp"
 #[wasm_bindgen]
 pub fn generate(ir_json: &str, target: &str) -> Result<String, JsValue> {
-    let definitions: Vec<sia_schema_core::ir::Definition> =
+    let definitions: Vec<sia_schema_core::ir::SchemaDefinition> =
         serde_json::from_str(ir_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     let target = sia_schema_core::gen::Target::from_extension(target)

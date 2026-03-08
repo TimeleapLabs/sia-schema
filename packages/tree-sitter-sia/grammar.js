@@ -13,8 +13,7 @@ export default grammar({
   extras: ($) => [/\s/, $.comment],
 
   rules: {
-    source_file: ($) =>
-      repeat(choice($.schema_definition, $.plugin_definition)),
+    source_file: ($) => repeat($.schema_definition),
 
     // Comments
     comment: (_$) => token(seq("//", /[^\n]*/)),
@@ -24,31 +23,6 @@ export default grammar({
       seq("schema", field("name", $.identifier), $.schema_body),
 
     schema_body: ($) => seq("{", repeat($.field_definition), "}"),
-
-    // plugin dotted.name as Alias { ... }
-    plugin_definition: ($) =>
-      seq(
-        "plugin",
-        field("name", $.dotted_name),
-        "as",
-        field("alias", $.identifier),
-        $.plugin_body,
-      ),
-
-    plugin_body: ($) => seq("{", repeat($.method_definition), "}"),
-
-    // method name(options) { ... } returns { ... }
-    method_definition: ($) =>
-      seq(
-        "method",
-        field("name", $.identifier),
-        optional($.option_list),
-        field("params", $.method_body),
-        "returns",
-        field("returns", $.method_body),
-      ),
-
-    method_body: ($) => seq("{", repeat($.field_definition), "}"),
 
     // Field: name? type(options)[] = default
     field_definition: ($) =>
@@ -83,9 +57,6 @@ export default grammar({
     number_literal: (_$) => token(/\d+/),
 
     boolean_literal: (_$) => choice("true", "false"),
-
-    // Dotted name: foo.bar.baz
-    dotted_name: ($) => seq($.identifier, repeat1(seq(".", $.identifier))),
 
     // Identifiers — keywords inside blocks are valid identifiers
     identifier: (_$) => /[a-zA-Z_][a-zA-Z0-9_]*/,

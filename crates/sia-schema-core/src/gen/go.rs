@@ -3,26 +3,20 @@ use std::fmt::Write;
 
 use crate::ir::*;
 
-/// Generate Go code from definitions.
-pub fn generate(definitions: &[Definition]) -> String {
+/// Generate Go code from schema definitions.
+pub fn generate(definitions: &[SchemaDefinition]) -> String {
     let gen = GoGenerator::new(definitions);
     gen.generate()
 }
 
 struct GoGenerator<'a> {
-    definitions: &'a [Definition],
+    definitions: &'a [SchemaDefinition],
     known_schemas: HashSet<&'a str>,
 }
 
 impl<'a> GoGenerator<'a> {
-    fn new(definitions: &'a [Definition]) -> Self {
-        let known_schemas = definitions
-            .iter()
-            .filter_map(|d| match d {
-                Definition::Schema(s) => Some(s.name.as_str()),
-                _ => None,
-            })
-            .collect();
+    fn new(definitions: &'a [SchemaDefinition]) -> Self {
+        let known_schemas = definitions.iter().map(|s| s.name.as_str()).collect();
         Self {
             definitions,
             known_schemas,
@@ -38,24 +32,14 @@ impl<'a> GoGenerator<'a> {
             "package schema\n  \n  import sia \"github.com/TimeleapLabs/go-sia/v2/pkg\"\n  \n",
         );
 
-        for def in self.definitions {
-            match def {
-                Definition::Schema(s) => {
-                    out.push_str(&self.schema_to_code(s));
-                }
-                Definition::Plugin(p) => {
-                    out.push_str(&self.plugin_to_code(p));
-                    out.push('\n');
-                }
-            }
+        for schema in self.definitions {
+            out.push_str(&self.schema_to_code(schema));
         }
 
         // FromSiaBytes helpers at the end
-        for def in self.definitions {
-            if let Definition::Schema(s) = def {
-                out.push_str(&self.decode_helper(&s.name));
-                out.push('\n');
-            }
+        for schema in self.definitions {
+            out.push_str(&self.decode_helper(&schema.name));
+            out.push('\n');
         }
 
         // Trim to exactly one trailing newline
@@ -241,15 +225,6 @@ impl<'a> GoGenerator<'a> {
         out
     }
 
-    fn plugin_to_code(&self, plugin: &PluginDefinition) -> String {
-        format!(
-            "// Cannot generate plugin '{}' due to lack of RPC support in the Go Sia generator.\n\
-             // You must connect to this plugin manually via RPC.\n\
-             // https://timeleap.swiss/docs/products/sia/highlevel#rpc\n",
-            plugin.name
-        )
-    }
-
     fn field_type_to_go_type(&self, field: &FieldDefinition) -> String {
         let base = if is_string_type(&field.field_type) {
             "string".to_string()
@@ -353,8 +328,6 @@ impl<'a> GoGenerator<'a> {
             return ref_val.to_string();
         }
 
-        // The TS compiler uses the field type name (e.g., "string") as the Go func return type.
-        // For the Go generator, we need to map that appropriately.
         let go_type = if is_string_type(&field.field_type) {
             "string"
         } else {
