@@ -57,7 +57,7 @@ vscode:
 # Install LSP to PATH, compile extension, launch Extension Development Host
 vscode-dev: vscode
     cargo install --path crates/sia-schema-lsp
-    code --extensionDevelopmentPath="$(pwd)/packages/vscode" .
+    code --extensionDevelopmentPath="$(pwd)/packages/vscode" "$(pwd)"
 
 # Package VS Code extension as .vsix
 vscode-package: vscode
