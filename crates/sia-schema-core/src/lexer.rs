@@ -37,8 +37,6 @@ pub enum TokenKind {
     Question,
     #[token(",")]
     Comma,
-    #[token(".")]
-    Dot,
 }
 
 impl TokenKind {
