@@ -147,8 +147,7 @@ packages/
   npm/                 npm wrapper package (@timeleap/sia-schema)
   vscode/              VS Code extension
   tree-sitter-sia/     Tree-sitter grammar
-python/
-  sia_schema/          Python wrapper for PyPI (timeleap-sia-schema)
+  python/              Python wrapper for PyPI (timeleap-sia-schema)
 ```
 
 ### Building

@@ -28,5 +28,5 @@ Repository = "https://github.com/TimeleapLabs/sia-schema"
 bindings = "bin"
 manifest-path = "crates/sia-schema/Cargo.toml"
 module-name = "sia_schema"
-python-source = "python"
+python-source = "packages/python"
 strip = true
