@@ -1,0 +1,13 @@
+schema Person {
+  name    string8
+  age?    int32
+  email?  string8(encoding = "ascii")[]
+  tags    string8[]
+  address Address
+}
+
+schema Address {
+  street?  string(encoding = "ascii") = "Default Street"
+  city     string8
+  zip      int32
+}

@@ -1,0 +1,15 @@
+[package]
+name = "sia-schema-wasm"
+version = "2.0.0"
+edition = "2021"
+description = "Sia schema compiler WASM bindings"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+sia-schema-core = { path = "../sia-schema-core" }
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+serde_json = { workspace = true }

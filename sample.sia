@@ -1,23 +1,15 @@
 schema Person {
-  name    string8
-  age?    int32
-  email?  string8(encoding = "ascii")[]
-  tags    string8[]
-  address Address
+  name     string8
+  age?     int32
+  email?   string8(encoding = "ascii")[]
+  tags     string8[]
+  address  Address
+  test     string
+  data     bool
 }
 
 schema Address {
   street?  string(encoding = "ascii") = "Default Street"
   city     string8
   zip      int32
-}
-
-plugin swiss.timeleap.isWizard.v1 as Sorcery {
-  method isWizard(timeout = 5000) {
-    age       uint8
-    name      string8
-  } returns {
-    isWizard  bool
-    message   string8
-  }
 }

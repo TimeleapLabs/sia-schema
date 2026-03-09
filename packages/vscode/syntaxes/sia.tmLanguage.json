@@ -1,0 +1,104 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Sia",
+  "patterns": [
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constraints" },
+    { "include": "#strings" },
+    { "include": "#comments" },
+    { "include": "#structures" }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.sia",
+          "match": "\\bschema\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.builtin.sia",
+          "match": "\\b(string8|string16|string32|string64|string|stringN|uint8|uint16|uint32|uint64|int8|int16|int32|int64|bool|byte8|byte16|byte32|byte64|byteN)\\b"
+        },
+        {
+          "name": "entity.name.type.sia",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "constraints": {
+      "patterns": [
+        {
+          "name": "meta.constraint.sia",
+          "begin": "\\(",
+          "end": "\\)",
+          "patterns": [
+            {
+              "name": "variable.parameter.sia",
+              "match": "\\b(encoding|length|fromEnd)\\b"
+            },
+            {
+              "name": "constant.numeric.sia",
+              "match": "\\b\\d+\\b"
+            },
+            {
+              "name": "string.quoted.double.sia",
+              "begin": "\"",
+              "end": "\""
+            }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.sia",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.sia",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.sia",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "structures": {
+      "patterns": [
+        {
+          "name": "meta.schema.sia",
+          "begin": "\\bschema\\s+([A-Z][a-zA-Z0-9_]*)\\s*\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "1": { "name": "entity.name.type.sia" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            {
+              "name": "meta.field.sia",
+              "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(\\?)?\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+              "captures": {
+                "1": { "name": "variable.other.readwrite.sia" },
+                "2": { "name": "punctuation.definition.optional.sia" },
+                "3": { "name": "support.type.sia" }
+              }
+            },
+            { "include": "#constraints" },
+            { "include": "#strings" }
+          ]
+        }
+      ]
+    }
+  },
+  "scopeName": "source.sia"
+}
