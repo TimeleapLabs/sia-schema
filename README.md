@@ -120,7 +120,7 @@ Install the **Sia Schema** extension from the `packages/vscode/` directory (or f
 
 ### Neovim
 
-The project includes a Tree-sitter grammar (`packages/tree-sitter-sia/`) and a built-in LSP server (`sia lsp`). See the `packages/tree-sitter-sia/` directory for setup instructions.
+Install the [tree-sitter-sia](https://github.com/TimeleapLabs/tree-sitter-sia) plugin for syntax highlighting, LSP, and filetype detection. The compiler includes a built-in LSP server (`sia lsp`).
 
 Requirements: Neovim 0.11+, `nvim-treesitter`, Mason (optional).
 
@@ -145,9 +145,8 @@ crates/
   sia-schema-wasm/     WASM bindings
 packages/
   npm/                 npm wrapper package (@timeleap/sia-schema)
-  vscode/              VS Code extension
-  tree-sitter-sia/     Tree-sitter grammar
   python/              Python wrapper for PyPI (timeleap-sia-schema)
+  vscode/              VS Code extension
 ```
 
 ### Building
