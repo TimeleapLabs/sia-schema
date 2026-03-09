@@ -1,17 +1,25 @@
+/*!
+ * Recursive descent parser for the Sia schema language.
+ *
+ * Parses a token stream into [`SchemaDefinition`] IR values. Supports error
+ * recovery by synchronizing on `schema` keywords and closing braces, so
+ * partial results are available even when the source has syntax errors.
+ */
+
 use std::collections::HashMap;
 
 use crate::error::{Diagnostic, Span};
 use crate::ir::*;
 use crate::lexer::{SpannedToken, TokenKind};
 
-/// Recursive descent parser for the Sia schema language.
+/// The parser state: a token stream with a cursor position.
 pub struct Parser {
     tokens: Vec<SpannedToken>,
     pos: usize,
     diagnostics: Vec<Diagnostic>,
 }
 
-/// Result of parsing: schema definitions + diagnostics.
+/// The result of parsing: schema definitions and any diagnostics.
 pub struct ParseResult {
     pub definitions: Vec<SchemaDefinition>,
     pub diagnostics: Vec<Diagnostic>,
@@ -26,7 +34,7 @@ impl Parser {
         }
     }
 
-    /// Parse the full source into definitions.
+    /// Consume the parser and return all parsed definitions with diagnostics.
     pub fn parse(mut self) -> ParseResult {
         let definitions = self.parse_sia_schema();
         ParseResult {
@@ -90,7 +98,7 @@ impl Parser {
         })
     }
 
-    /// Skip tokens until we find a synchronization point.
+    /// Skip tokens until a synchronization point (`schema` keyword or `}`).
     fn synchronize(&mut self) {
         while !self.at_end() {
             match self.peek_kind() {

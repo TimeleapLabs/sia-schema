@@ -1,3 +1,11 @@
+/*!
+ * C++ code generator.
+ *
+ * Generates a `.hpp` header with structs and forward declarations, and a
+ * `.cpp` source with encode/decode implementations using `sia::Sia` and
+ * `shared_ptr`. Custom schema references use `std::shared_ptr<T>`.
+ */
+
 use std::collections::HashSet;
 use std::fmt::Write;
 

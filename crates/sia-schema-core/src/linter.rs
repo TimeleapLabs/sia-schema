@@ -1,7 +1,9 @@
-//! Sia schema linter — semantic checks beyond parse errors.
-//!
-//! All lint rules operate on the parsed IR (`SchemaDefinition` list) and produce
-//! `LintDiagnostic` values with severity, message, and source span.
+/*!
+ * Sia schema linter: semantic checks beyond parse errors.
+ *
+ * All 8 lint rules operate on the parsed IR ([`SchemaDefinition`] list) and
+ * produce [`LintDiagnostic`] values with severity, message, and source span.
+ */
 
 use std::collections::{HashMap, HashSet};
 
@@ -13,14 +15,16 @@ use crate::ir::*;
 pub struct LintDiagnostic {
     pub severity: Severity,
     pub message: String,
-    /// Span pointing to the relevant source location.
-    /// Uses byte offset + length, same as parser diagnostics.
+    /**
+     * Span pointing to the relevant source location.
+     * Uses byte offset + length, same as parser diagnostics.
+     */
     pub span: Span,
     /// Machine-readable rule identifier.
     pub rule: LintRule,
 }
 
-/// Lint rule identifiers for filtering/suppression.
+/// Lint rule identifiers for filtering and suppression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LintRule {
     DuplicateSchemaName,
@@ -48,11 +52,13 @@ impl std::fmt::Display for LintRule {
     }
 }
 
-/// Run all lint rules on the given definitions.
-///
-/// `source` is the original source text, used to locate spans for symbols
-/// that don't carry spans in the IR. (The IR currently doesn't store spans;
-/// we locate identifiers by searching the source text.)
+/**
+ * Run all 8 lint rules on the given definitions.
+ *
+ * `source` is the original source text, used to locate spans for symbols
+ * that don't carry spans in the IR. The IR currently doesn't store spans,
+ * so identifiers are located by searching the source text.
+ */
 pub fn lint(definitions: &[SchemaDefinition], source: &str) -> Vec<LintDiagnostic> {
     let mut diagnostics = Vec::new();
 

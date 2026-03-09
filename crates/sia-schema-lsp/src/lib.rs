@@ -1,3 +1,12 @@
+/*!
+ * LSP server for the Sia schema language.
+ *
+ * Implements the Language Server Protocol over stdio using `tower-lsp`.
+ * Launched via the `sia lsp` CLI subcommand. Provides diagnostics,
+ * completions, formatting, hover, go-to-definition, document symbols,
+ * and rename support.
+ */
+
 mod capabilities;
 mod symbols;
 
@@ -9,7 +18,7 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use sia_schema_core::error::LineIndex;
 use sia_schema_core::ir::SchemaDefinition;
 
-/// Per-document state.
+/// Cached state for a single open document.
 struct DocumentState {
     source: String,
     definitions: Vec<SchemaDefinition>,
@@ -223,7 +232,7 @@ impl LanguageServer for SiaLspBackend {
     }
 }
 
-/// Run the LSP server on stdin/stdout.
+/// Start the LSP server, reading from stdin and writing to stdout.
 pub async fn run() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();

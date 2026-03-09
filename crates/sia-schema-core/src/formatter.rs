@@ -1,8 +1,10 @@
-//! Sia schema formatter — deterministic, opinionated formatting for `.sia` files.
-//!
-//! Design: two-pass line-based formatter that preserves comments.
-//! Pass 1: classify each line and group fields into alignment blocks.
-//! Pass 2: emit formatted output with proper indentation, alignment, and spacing.
+/*!
+ * Sia schema formatter: deterministic, opinionated formatting for `.sia` files.
+ *
+ * Two-pass line-based design that preserves comments:
+ * 1. Classify each line and group fields into alignment blocks.
+ * 2. Emit formatted output with proper indentation, alignment, and spacing.
+ */
 
 /// Formatting options.
 #[derive(Debug, Clone)]

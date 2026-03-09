@@ -1,3 +1,10 @@
+/*!
+ * Sia schema compiler CLI.
+ *
+ * Provides the `sia` binary with subcommands: `compile`, `ir`, `fmt`,
+ * `check`, and `lsp`. See `sia --help` for usage.
+ */
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;

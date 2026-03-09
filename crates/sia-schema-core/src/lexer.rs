@@ -1,7 +1,15 @@
+/*!
+ * Lexer for the Sia schema language.
+ *
+ * Uses the [`logos`] crate for fast tokenization. After lexing, a post-lex
+ * pass demotes keywords to identifiers inside `schema { }` blocks so that
+ * fields can use reserved words as names.
+ */
+
 use crate::error::Span;
 use logos::Logos;
 
-/// Token types for the Sia schema language.
+/** Token types for the Sia schema language. */
 #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
 #[logos(skip r"[ \t\r\n\f]+")]
 #[logos(skip r"//[^\n]*")]
@@ -40,12 +48,13 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
+    /** Returns `true` if this token is a language keyword. */
     pub fn is_keyword(self) -> bool {
         matches!(self, TokenKind::Schema)
     }
 }
 
-/// A token with its source span and text.
+/** A token with its kind, source span, and original text. */
 #[derive(Debug, Clone)]
 pub struct SpannedToken {
     pub kind: TokenKind,
@@ -53,9 +62,12 @@ pub struct SpannedToken {
     pub text: String,
 }
 
-/// Tokenize source code into a list of spanned tokens.
-///
-/// Returns `(tokens, errors)` where errors contain spans of unrecognized input.
+/**
+ * Tokenize source code into a list of spanned tokens.
+ *
+ * Returns `(tokens, diagnostics)` where diagnostics contain spans of
+ * unrecognized input. Runs the keyword demotion pass before returning.
+ */
 pub fn tokenize(source: &str) -> (Vec<SpannedToken>, Vec<crate::error::Diagnostic>) {
     let mut tokens = Vec::new();
     let mut errors = Vec::new();
@@ -85,10 +97,12 @@ pub fn tokenize(source: &str) -> (Vec<SpannedToken>, Vec<crate::error::Diagnosti
     (tokens, errors)
 }
 
-/// Inside `schema { ... }` blocks, all keywords become identifiers so fields
-/// can be named "schema", etc.
-///
-/// This replicates the TS compiler's post-tokenization behavior exactly.
+/**
+ * Demote keywords to identifiers inside `schema { ... }` blocks.
+ *
+ * This allows fields to use reserved words like "schema" as names.
+ * Replicates the original TypeScript compiler's post-tokenization behavior.
+ */
 fn demote_keywords_in_blocks(tokens: &mut [SpannedToken]) {
     let mut maybe_field_def = false;
     let mut in_field_def = false;

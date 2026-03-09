@@ -1,3 +1,11 @@
+/*!
+ * Python code generator.
+ *
+ * Generates classes with `__init__`, `encode`, and `@classmethod decode`
+ * methods using the `sia` Python package. Required fields come before
+ * optional fields in `__init__` parameter order.
+ */
+
 use std::collections::HashSet;
 use std::fmt::Write;
 

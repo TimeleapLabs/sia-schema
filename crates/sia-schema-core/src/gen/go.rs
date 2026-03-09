@@ -1,3 +1,11 @@
+/*!
+ * Go code generator.
+ *
+ * Generates structs with `Sia()`, `FromSia()`, and `FromSiaBytes()` methods
+ * using `github.com/TimeleapLabs/go-sia/v2/pkg`. Non-array fields are
+ * serialized before array fields to match the original compiler's output.
+ */
+
 use std::collections::HashSet;
 use std::fmt::Write;
 

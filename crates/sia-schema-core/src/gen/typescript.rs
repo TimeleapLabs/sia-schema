@@ -1,3 +1,9 @@
+//! TypeScript code generator.
+//!
+//! Generates interfaces, `encode` and `decode` functions using the
+//! `@timeleap/sia` library. Output is pre-formatted to match prettier
+//! defaults (80-column line wrapping) with no external dependency.
+
 use std::fmt::Write;
 
 use heck::{ToLowerCamelCase, ToPascalCase};
